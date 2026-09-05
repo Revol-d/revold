@@ -4,13 +4,18 @@ O endpoint de checkout também é responsabilidade desta camada mapear
 core_cart.domain.Cart -> core_communication.domain.CartSummary — os dois
 cores não se importam entre si (ADR-0002), então essa tradução é
 orquestração, e orquestração vive no api-gateway (ou num orchestrator
-dedicado, quando um existir).
+dedicado, quando um existir). Pela mesma razão, a reserva de estoque
+(core-inventory) no momento do checkout também é orquestrada aqui.
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from api_gateway.dependencies import get_cart_repository, get_checkout_handoff
+from api_gateway.dependencies import (
+    get_cart_repository,
+    get_checkout_handoff,
+    get_inventory_repository,
+)
 from core_cart.domain import Cart, CartItemNotFound, EmptyCart
 from core_cart.ports import CartRepository
 from core_cart.schemas import (
@@ -30,6 +35,9 @@ from core_cart.use_cases import (
 )
 from core_communication.domain import CartSummary, CartSummaryLine
 from core_communication.ports import CheckoutHandoff
+from core_inventory.domain import InsufficientStock, StockLevelNotFound
+from core_inventory.ports import InventoryRepository
+from core_inventory.use_cases import ReleaseStock, ReserveStock
 
 router = APIRouter(prefix="/api/cart", tags=["cart"])
 
@@ -126,18 +134,60 @@ async def remove_item(
     return _cart_to_schema(cart)
 
 
+async def _reserve_cart_stock(cart: Cart, inventory_repository: InventoryRepository) -> None:
+    """Reserva (não baixa) o estoque de cada item do carrinho antes do handoff
+    de checkout (ADR-0005: a baixa definitiva só acontece quando a venda é
+    confirmada manualmente pelo WhatsApp — ver core_inventory.use_cases).
+
+    Um SKU sem StockLevel cadastrado é tratado como "ainda não rastreado" e
+    não bloqueia o checkout — core-inventory está sendo adotado
+    gradualmente, nem todo produto do catálogo tem estoque cadastrado ainda.
+
+    Como cada reserva é commitada de forma independente (não há uma única
+    transação cobrindo o carrinho inteiro), se um item no meio da lista
+    falhar por falta de estoque, as reservas já feitas para os itens
+    anteriores são desfeitas explicitamente antes de propagar o erro.
+    """
+    reserved: list[tuple[str, int]] = []
+    try:
+        for item in cart.items:
+            try:
+                await ReserveStock(inventory_repository).execute(item.sku, item.quantity)
+            except StockLevelNotFound:
+                continue
+            reserved.append((item.sku, item.quantity))
+    except InsufficientStock:
+        for sku, quantity in reserved:
+            await ReleaseStock(inventory_repository).execute(sku, quantity)
+        raise
+
+
 @router.post("/{cart_id}/checkout", response_model=CheckoutHandoffResponseSchema)
 async def start_checkout(
     cart_id: str,
     repository: CartRepository = Depends(get_cart_repository),
+    inventory_repository: InventoryRepository = Depends(get_inventory_repository),
     checkout: CheckoutHandoff = Depends(get_checkout_handoff),
 ) -> CheckoutHandoffResponseSchema:
     try:
         cart = await GetCartForCheckout(repository).execute(cart_id)
     except EmptyCart as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
+        await _reserve_cart_stock(cart, inventory_repository)
+    except InsufficientStock as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     try:
         url = checkout.build_handoff(_cart_to_summary(cart))
     except ValueError as exc:
+        # o estoque já reservado não deve ficar preso se o handoff falhar
+        # (ex.: NICK_WHATSAPP_NUMBER não configurado) — libera antes de propagar.
+        for item in cart.items:
+            try:
+                await ReleaseStock(inventory_repository).execute(item.sku, item.quantity)
+            except StockLevelNotFound:
+                continue
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return CheckoutHandoffResponseSchema(handoff_url=url, provider=checkout.provider_name)
