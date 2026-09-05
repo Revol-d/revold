@@ -13,6 +13,12 @@ from core_catalog.domain import Category, Product
 class ProductRepository(Protocol):
     async def list_categories(self) -> list[Category]: ...
 
+    async def get_category(self, slug: str) -> Category | None: ...
+
+    async def save_category(self, category: Category) -> None:
+        """Cria ou atualiza uma categoria (upsert por slug)."""
+        ...
+
     async def list_products(
         self, *, category_slug: str | None, page: int, page_size: int
     ) -> tuple[list[Product], int]:
@@ -20,3 +26,8 @@ class ProductRepository(Protocol):
         ...
 
     async def get_product(self, sku: str) -> Product | None: ...
+
+    async def save_product(self, product: Product) -> None:
+        """Cria ou atualiza um produto, substituindo suas variantes por completo
+        (upsert por SKU)."""
+        ...

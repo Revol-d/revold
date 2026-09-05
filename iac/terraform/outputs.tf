@@ -9,3 +9,7 @@ output "postgres_fqdn" {
 output "key_vault_uri" {
   value = module.key_vault.key_vault_uri
 }
+
+output "azure_openai_endpoint" {
+  value = module.azure_openai.endpoint
+}

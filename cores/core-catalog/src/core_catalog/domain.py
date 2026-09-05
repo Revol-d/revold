@@ -54,3 +54,19 @@ class ProductNotFound(Exception):
     def __init__(self, sku: str) -> None:
         super().__init__(f"Produto '{sku}' não encontrado")
         self.sku = sku
+
+
+class CategoryNotFound(Exception):
+    """Levantada ao tentar criar um produto numa categoria que não existe."""
+
+    def __init__(self, slug: str) -> None:
+        super().__init__(f"Categoria '{slug}' não encontrada")
+        self.slug = slug
+
+
+class DuplicateSku(Exception):
+    """Levantada ao tentar criar um produto com um SKU que já existe."""
+
+    def __init__(self, sku: str) -> None:
+        super().__init__(f"Produto com SKU '{sku}' já existe")
+        self.sku = sku

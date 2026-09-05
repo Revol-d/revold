@@ -21,6 +21,26 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Category"
+    post:
+      operationId: createCategory
+      summary: Cria (ou atualiza) uma categoria — uso administrativo, papel STAFF/ADMIN
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCategoryRequest" }
+      responses:
+        "201":
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Category" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
   /products:
     get:
       operationId: listProducts
@@ -50,6 +70,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductPage"
+    post:
+      operationId: createProduct
+      summary: Cria um produto novo — uso administrativo, papel STAFF/ADMIN
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProductRequest" }
+      responses:
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Categoria não encontrada
+        "409":
+          description: SKU já existe
   /products/{sku}:
     get:
       operationId: getProduct
@@ -70,6 +114,14 @@ paths:
         "404":
           description: Produto não encontrado
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: >
+        Cookie HttpOnly de sessão (ADR-0010) — obtido via
+        POST /api/auth/login/complete (ver contracts/api/identity.yaml).
   schemas:
     Money:
       type: object
@@ -140,3 +192,27 @@ components:
           type: integer
         total:
           type: integer
+    CreateCategoryRequest:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+    CreateProductRequest:
+      type: object
+      required: [sku, name, category_slug, price]
+      properties:
+        sku: { type: string }
+        name: { type: string }
+        category_slug: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        description: { type: string, default: "" }
+        images:
+          type: array
+          items: { type: string, format: uri }
+          default: []
+        original_price: { $ref: "#/components/schemas/Money" }
+        variants:
+          type: array
+          items: { $ref: "#/components/schemas/ProductVariant" }
+          default: []

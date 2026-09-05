@@ -23,7 +23,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    # localhost:3000 = storefront, localhost:3001 = admin-dashboard (RBAC
+    # STAFF/ADMIN, ver ADR-0010).
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

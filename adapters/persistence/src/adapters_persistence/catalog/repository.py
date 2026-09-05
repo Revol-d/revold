@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from adapters_persistence.catalog.models import CategoryModel, ProductModel
+from adapters_persistence.catalog.models import CategoryModel, ProductModel, ProductVariantModel
 from core_catalog.domain import Category, Money, Product, ProductVariant
 
 
@@ -44,6 +44,18 @@ class PostgresProductRepository:
         result = await self._session.execute(select(CategoryModel))
         return [Category(slug=c.slug, name=c.name) for c in result.scalars().all()]
 
+    async def get_category(self, slug: str) -> Category | None:
+        model = await self._session.get(CategoryModel, slug)
+        return Category(slug=model.slug, name=model.name) if model is not None else None
+
+    async def save_category(self, category: Category) -> None:
+        model = await self._session.get(CategoryModel, category.slug)
+        if model is None:
+            model = CategoryModel(slug=category.slug)
+            self._session.add(model)
+        model.name = category.name
+        await self._session.commit()
+
     async def list_products(
         self, *, category_slug: str | None, page: int, page_size: int
     ) -> tuple[list[Product], int]:
@@ -69,3 +81,37 @@ class PostgresProductRepository:
         )
         model = (await self._session.execute(query)).scalar_one_or_none()
         return _to_domain(model) if model is not None else None
+
+    async def save_product(self, product: Product) -> None:
+        query = (
+            select(ProductModel)
+            .options(selectinload(ProductModel.variants))
+            .where(ProductModel.sku == product.sku)
+        )
+        model = (await self._session.execute(query)).scalar_one_or_none()
+        if model is None:
+            model = ProductModel(sku=product.sku)
+            self._session.add(model)
+
+        model.name = product.name
+        model.description = product.description
+        model.category_slug = product.category.slug
+        model.price_amount = product.price.amount
+        model.price_currency = product.price.currency
+        model.original_price_amount = (
+            product.original_price.amount if product.original_price is not None else None
+        )
+        model.images = list(product.images)
+        # Substitui as variantes por completo — upsert simples; o cascade
+        # delete-orphan (ver models.py) remove as que não estão mais na lista.
+        model.variants = [
+            ProductVariantModel(
+                sku=variant.sku,
+                product_sku=product.sku,
+                size=variant.size,
+                color=variant.color,
+                in_stock=variant.in_stock,
+            )
+            for variant in product.variants
+        ]
+        await self._session.commit()

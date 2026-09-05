@@ -4,16 +4,27 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api_gateway.dependencies import get_product_repository
-from core_catalog.domain import Product, ProductNotFound
+from api_gateway.security import require_any_role
+from core_catalog.domain import CategoryNotFound, DuplicateSku, Money, Product, ProductNotFound, ProductVariant
 from core_catalog.ports import ProductRepository
 from core_catalog.schemas import (
     CategorySchema,
+    CreateCategoryRequestSchema,
+    CreateProductRequestSchema,
     MoneySchema,
     ProductPageSchema,
     ProductSchema,
     ProductVariantSchema,
 )
-from core_catalog.use_cases import GetProduct, ListCategories, ListProducts
+from core_catalog.use_cases import (
+    CreateCategory,
+    CreateProduct,
+    GetProduct,
+    ListCategories,
+    ListProducts,
+)
+from core_identity.domain import AuthenticatedUser
+from core_identity.domain import Role as UserRole
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
@@ -55,6 +66,47 @@ async def get_product(
         product = await GetProduct(repository).execute(sku)
     except ProductNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _product_to_schema(product)
+
+
+@router.post("/categories", response_model=CategorySchema, status_code=201)
+async def create_category(
+    body: CreateCategoryRequestSchema,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> CategorySchema:
+    category = await CreateCategory(repository).execute(slug=body.slug, name=body.name)
+    return CategorySchema(slug=category.slug, name=category.name)
+
+
+@router.post("/products", response_model=ProductSchema, status_code=201)
+async def create_product(
+    body: CreateProductRequestSchema,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> ProductSchema:
+    try:
+        product = await CreateProduct(repository).execute(
+            sku=body.sku,
+            name=body.name,
+            category_slug=body.category_slug,
+            price=Money(amount=body.price.amount, currency=body.price.currency),
+            description=body.description,
+            images=body.images,
+            original_price=(
+                Money(amount=body.original_price.amount, currency=body.original_price.currency)
+                if body.original_price
+                else None
+            ),
+            variants=[
+                ProductVariant(sku=v.sku, size=v.size, color=v.color, in_stock=v.in_stock)
+                for v in body.variants
+            ],
+        )
+    except CategoryNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except DuplicateSku as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _product_to_schema(product)
 
 

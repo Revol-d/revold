@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MoneySchema(BaseModel):
@@ -46,3 +46,26 @@ class ProductPageSchema(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class CreateCategoryRequestSchema(BaseModel):
+    slug: str
+    name: str
+
+
+class CreateProductVariantSchema(BaseModel):
+    sku: str
+    size: str
+    color: str
+    in_stock: bool = True
+
+
+class CreateProductRequestSchema(BaseModel):
+    sku: str
+    name: str
+    category_slug: str
+    price: MoneySchema
+    description: str = ""
+    images: list[str] = Field(default_factory=list)
+    original_price: MoneySchema | None = None
+    variants: list[CreateProductVariantSchema] = Field(default_factory=list)

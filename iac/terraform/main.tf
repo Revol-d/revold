@@ -32,3 +32,13 @@ module "container_apps" {
   container_apps_subnet_id = module.network.container_apps_subnet_id
   workload_identity_id     = module.key_vault.workload_identity_id
 }
+
+module "azure_openai" {
+  source                          = "./modules/azure-openai"
+  project_name                    = var.project_name
+  environment                     = var.environment
+  location                        = module.network.location
+  resource_group_name             = module.network.resource_group_name
+  key_vault_id                    = module.key_vault.key_vault_id
+  workload_identity_principal_id  = module.key_vault.workload_identity_principal_id
+}

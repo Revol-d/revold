@@ -17,12 +17,16 @@ class FakeProductRepository:
 
     def __init__(self, products: list[Product]) -> None:
         self._products = {p.sku: p for p in products}
+        self._categories: dict[str, Category] = {p.category.slug: p.category for p in products}
 
     async def list_categories(self) -> list[Category]:
-        seen: dict[str, Category] = {}
-        for product in self._products.values():
-            seen[product.category.slug] = product.category
-        return list(seen.values())
+        return list(self._categories.values())
+
+    async def get_category(self, slug: str) -> Category | None:
+        return self._categories.get(slug)
+
+    async def save_category(self, category: Category) -> None:
+        self._categories[category.slug] = category
 
     async def list_products(
         self, *, category_slug: str | None, page: int, page_size: int
@@ -36,6 +40,9 @@ class FakeProductRepository:
 
     async def get_product(self, sku: str) -> Product | None:
         return self._products.get(sku)
+
+    async def save_product(self, product: Product) -> None:
+        self._products[product.sku] = product
 
 
 @pytest.fixture

@@ -11,11 +11,14 @@ from httpx import ASGITransport, AsyncClient
 
 from api_gateway.dependencies import get_product_repository
 from api_gateway.main import app
+from api_gateway.security import get_current_user
 from core_catalog.domain import Category, Money, Product, ProductVariant
+from core_identity.domain import AuthenticatedUser, Role
 
 
 class _FakeRepository:
     def __init__(self) -> None:
+        self._categories = {"camisetas": Category(slug="camisetas", name="Camisetas")}
         self._products = {
             "CAM-001": Product(
                 sku="CAM-001",
@@ -28,7 +31,13 @@ class _FakeRepository:
         }
 
     async def list_categories(self):
-        return [p.category for p in self._products.values()]
+        return list(self._categories.values())
+
+    async def get_category(self, slug):
+        return self._categories.get(slug)
+
+    async def save_category(self, category):
+        self._categories[category.slug] = category
 
     async def list_products(self, *, category_slug, page, page_size):
         items = list(self._products.values())
@@ -39,10 +48,27 @@ class _FakeRepository:
     async def get_product(self, sku):
         return self._products.get(sku)
 
+    async def save_product(self, product):
+        self._products[product.sku] = product
+
+
+_STAFF_USER = AuthenticatedUser(
+    external_id="staff-1", provider="dev", email="staff@example.com", name="Staff",
+    roles=(Role.STAFF,),
+)
+_CUSTOMER_USER = AuthenticatedUser(
+    external_id="cust-1", provider="dev", email="cliente@example.com", name="Cliente",
+    roles=(Role.CUSTOMER,),
+)
+
 
 @pytest.fixture(autouse=True)
 def override_repository():
-    app.dependency_overrides[get_product_repository] = lambda: _FakeRepository()
+    # Uma única instância por teste: escritas (create_category/create_product)
+    # precisam ser visíveis em leituras subsequentes na mesma requisição de
+    # teste, então a mesma instância tem que ser devolvida a cada resolução.
+    repository = _FakeRepository()
+    app.dependency_overrides[get_product_repository] = lambda: repository
     yield
     app.dependency_overrides.clear()
 
@@ -77,3 +103,74 @@ async def test_get_product_found(client: AsyncClient) -> None:
     response = await client.get("/api/catalog/products/CAM-001")
     assert response.status_code == 200
     assert response.json()["name"] == "Camiseta Básica"
+
+
+async def test_create_category_sem_autenticacao_retorna_401(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/catalog/categories", json={"slug": "bolsas", "name": "Bolsas"}
+    )
+    assert response.status_code == 401
+
+
+async def test_create_category_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.post(
+        "/api/catalog/categories", json={"slug": "bolsas", "name": "Bolsas"}
+    )
+    assert response.status_code == 403
+
+
+async def test_create_category_com_papel_staff_cria(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/categories", json={"slug": "bolsas", "name": "Bolsas"}
+    )
+    assert response.status_code == 201
+    assert response.json() == {"slug": "bolsas", "name": "Bolsas"}
+
+
+async def test_create_product_com_papel_staff_cria(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products",
+        json={
+            "sku": "VES-001",
+            "name": "Vestido Floral",
+            "category_slug": "camisetas",
+            "price": {"amount": "129.90", "currency": "BRL"},
+            "variants": [{"sku": "VES-001-M", "size": "M", "color": "Floral", "in_stock": True}],
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["sku"] == "VES-001"
+
+    listed = await client.get("/api/catalog/products/VES-001")
+    assert listed.status_code == 200
+
+
+async def test_create_product_categoria_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products",
+        json={
+            "sku": "VES-002",
+            "name": "Vestido",
+            "category_slug": "nao-existe",
+            "price": {"amount": "99.90", "currency": "BRL"},
+        },
+    )
+    assert response.status_code == 404
+
+
+async def test_create_product_sku_duplicado_retorna_409(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products",
+        json={
+            "sku": "CAM-001",
+            "name": "Outra Camiseta",
+            "category_slug": "camisetas",
+            "price": {"amount": "59.90", "currency": "BRL"},
+        },
+    )
+    assert response.status_code == 409

@@ -17,6 +17,7 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock* ./
 COPY cores ./cores
 COPY adapters ./adapters
+COPY workers ./workers
 COPY apps/api-gateway ./apps/api-gateway
 
 RUN poetry install --only main
