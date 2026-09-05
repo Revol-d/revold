@@ -44,6 +44,7 @@ pytest-cov = "^5.0.0"
 ruff = "^0.6.8"
 mypy = "^1.11.2"
 httpx = "^0.27.2"
+fakeredis = "^2.24.1"
 
 [build-system]
 requires = ["poetry-core"]
@@ -52,6 +53,11 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 testpaths = ["cores", "adapters", "apps"]
 asyncio_mode = "auto"
+# --import-mode=importlib: permite que módulos de teste com o mesmo nome de
+# arquivo (ex.: test_use_cases.py em mais de um core) coexistam sem colidir
+# em sys.modules — inevitável num monorepo com muitos cores/adapters, cada
+# um com sua própria pasta tests/ (ver docs/guides/development.md).
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 line-length = 100
@@ -60,3 +66,8 @@ target-version = "py312"
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
+# Pastas de teste não entram no mypy da raiz: cada core/adapter tem sua
+# própria pasta tests/ sem __init__.py (ver addopts acima), o que faz o
+# mypy reclamar de "Duplicate module" quando roda sobre o repo inteiro.
+# ruff + a própria execução dos testes já cobrem a qualidade desses arquivos.
+exclude = "(^|/)tests/"

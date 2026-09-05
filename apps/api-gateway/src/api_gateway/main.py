@@ -1,13 +1,15 @@
 """Ponto de entrada FastAPI do api-gateway.
 
-Composição: monta os routers de cada core que já expõe API HTTP. Hoje só
-core-catalog; os demais cores entram aqui conforme forem implementados.
+Composição: monta os routers de cada core que já expõe API HTTP. Hoje
+core-catalog e core-cart; os demais cores entram aqui conforme forem
+implementados.
 """
 from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api_gateway.routers.cart import router as cart_router
 from api_gateway.routers.catalog import router as catalog_router
 
 app = FastAPI(
@@ -25,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(catalog_router)
+app.include_router(cart_router)
 
 
 @app.get("/health")
