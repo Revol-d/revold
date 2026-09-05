@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api_gateway.routers.assistant import router as assistant_router
 from api_gateway.routers.cart import router as cart_router
 from api_gateway.routers.catalog import router as catalog_router
 from api_gateway.routers.identity import router as identity_router
@@ -32,6 +33,7 @@ app.include_router(catalog_router)
 app.include_router(cart_router)
 app.include_router(identity_router)
 app.include_router(inventory_router)
+app.include_router(assistant_router)
 
 
 @app.get("/health")

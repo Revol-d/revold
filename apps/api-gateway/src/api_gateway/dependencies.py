@@ -13,15 +13,18 @@ from fastapi import Depends
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from adapters_external.ai.factory import get_llm_provider as _get_llm_provider
 from adapters_external.checkout.whatsapp_clicktochat import WhatsAppClickToChatCheckout
 from adapters_external.identity.factory import get_identity_provider as _get_identity_provider
 from adapters_external.notification.logging_channel import LoggingNotificationChannel
+from adapters_persistence.ai_assistant.repository import PostgresProductIndexRepository
 from adapters_persistence.cart.redis_repository import RedisCartRepository
 from adapters_persistence.catalog.repository import PostgresProductRepository
 from adapters_persistence.db import make_engine, make_session_factory
 from adapters_persistence.identity.redis_session_repository import RedisSessionRepository
 from adapters_persistence.inventory.repository import PostgresInventoryRepository
 from adapters_persistence.redis_client import make_redis_client
+from core_ai_assistant.ports import LLMProvider, ProductIndex
 from core_cart.ports import CartRepository
 from core_catalog.ports import ProductRepository
 from core_communication.ports import CheckoutHandoff
@@ -91,3 +94,15 @@ def get_notification_channel() -> NotificationChannel:
 
 def get_low_stock_threshold() -> int:
     return int(os.environ.get("LOW_STOCK_THRESHOLD", "5"))
+
+
+def get_llm_provider() -> LLMProvider:
+    # Seleciona dev/azure-openai via LLM_PROVIDER (ver
+    # adapters_external.ai.factory e ADR-0011).
+    return _get_llm_provider()
+
+
+async def get_product_index(
+    session: AsyncSession = Depends(get_db_session),
+) -> ProductIndex:
+    return PostgresProductIndexRepository(session)

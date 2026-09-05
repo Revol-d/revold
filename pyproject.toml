@@ -16,6 +16,7 @@ packages = [
   { include = "adapters_external", from = "adapters/external/src" },
   { include = "adapters_messaging", from = "adapters/messaging/src" },
   { include = "api_gateway", from = "apps/api-gateway/src" },
+  { include = "catalog_indexer", from = "workers/catalog-indexer/src" },
 ]
 
 [tool.poetry.dependencies]
@@ -51,12 +52,8 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-testpaths = ["cores", "adapters", "apps"]
+testpaths = ["cores", "adapters", "apps", "workers"]
 asyncio_mode = "auto"
-# --import-mode=importlib: permite que módulos de teste com o mesmo nome de
-# arquivo (ex.: test_use_cases.py em mais de um core) coexistam sem colidir
-# em sys.modules — inevitável num monorepo com muitos cores/adapters, cada
-# um com sua própria pasta tests/ (ver docs/guides/development.md).
 addopts = "--import-mode=importlib"
 
 [tool.ruff]
@@ -66,8 +63,4 @@ target-version = "py312"
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
-# Pastas de teste não entram no mypy da raiz: cada core/adapter tem sua
-# própria pasta tests/ sem __init__.py (ver addopts acima), o que faz o
-# mypy reclamar de "Duplicate module" quando roda sobre o repo inteiro.
-# ruff + a própria execução dos testes já cobrem a qualidade desses arquivos.
 exclude = "(^|/)tests/"

@@ -16,6 +16,7 @@ Este monorepo segue Domain-Driven Design, Hexagonal Architecture (Ports & Adapte
 | [0008](adr/0008-ci-no-github-actions.md) | CI/CD no GitHub Actions |
 | [0009](adr/0009-docker-first-para-desenvolvimento-local.md) | Docker-first para desenvolvimento local |
 | [0010](adr/0010-sessao-via-cookie-httponly-redis.md) | Sessão de autenticação via cookie HttpOnly + Redis |
+| [0011](adr/0011-escopo-do-assistente-de-ia.md) | Escopo do assistente de IA (RAG sobre catálogo + LangGraph) |
 
 Toda nova decisão arquitetural relevante (novo core, nova camada, mudança de infraestrutura, troca de provedor externo) deve ganhar um ADR novo antes da implementação, não depois.
 
