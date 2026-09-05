@@ -102,16 +102,43 @@ class PostgresProductRepository:
             product.original_price.amount if product.original_price is not None else None
         )
         model.images = list(product.images)
-        # Substitui as variantes por completo — upsert simples; o cascade
-        # delete-orphan (ver models.py) remove as que não estão mais na lista.
-        model.variants = [
-            ProductVariantModel(
-                sku=variant.sku,
-                product_sku=product.sku,
-                size=variant.size,
-                color=variant.color,
-                in_stock=variant.in_stock,
-            )
-            for variant in product.variants
-        ]
+
+        # Reconcilia as variantes por SKU em vez de substituir a coleção
+        # inteira por instâncias novas: se um SKU que já existe no banco
+        # fosse recriado do zero, o SQLAlchemy geraria um INSERT para ele
+        # (é uma instância transiente, sem identidade de sessão) *antes* do
+        # DELETE do órfão do mesmo flush — colidindo com a própria primary
+        # key. Por isso as variantes que continuam existindo são atualizadas
+        # em cima da instância persistente já carregada; só SKUs realmente
+        # novos viram instâncias novas, e só os que saíram da lista são
+        # removidos (cascade delete-orphan, ver models.py).
+        existing_by_sku = {v.sku: v for v in model.variants}
+        incoming_skus = {variant.sku for variant in product.variants}
+
+        for sku, existing_variant in existing_by_sku.items():
+            if sku not in incoming_skus:
+                model.variants.remove(existing_variant)
+
+        for variant in product.variants:
+            matching_variant = existing_by_sku.get(variant.sku)
+            if matching_variant is not None:
+                matching_variant.size = variant.size
+                matching_variant.color = variant.color
+                matching_variant.in_stock = variant.in_stock
+            else:
+                model.variants.append(
+                    ProductVariantModel(
+                        sku=variant.sku,
+                        product_sku=product.sku,
+                        size=variant.size,
+                        color=variant.color,
+                        in_stock=variant.in_stock,
+                    )
+                )
         await self._session.commit()
+
+    async def find_variant_owner(self, variant_sku: str) -> str | None:
+        result = await self._session.execute(
+            select(ProductVariantModel.product_sku).where(ProductVariantModel.sku == variant_sku)
+        )
+        return result.scalar_one_or_none()

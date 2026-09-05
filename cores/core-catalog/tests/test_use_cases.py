@@ -111,6 +111,24 @@ class TestCreateProduct:
                 variants=[],
             )
 
+    async def test_variante_com_sku_de_outro_produto_levanta_duplicate_variant_sku(
+        self, fake_repository
+    ) -> None:
+        # CAM-001-P-BR já é variante de CAM-001 — SKU de variante é único
+        # globalmente (mesma chave usada pelo core-inventory), não só dentro
+        # de um produto, então criar OUTRO produto reaproveitando esse SKU
+        # de variante tem que ser rejeitado.
+        with pytest.raises(DuplicateVariantSku):
+            await CreateProduct(fake_repository).execute(
+                sku="VES-003",
+                name="Vestido",
+                category_slug="camisetas",
+                price=Money(Decimal("99.90")),
+                variants=[
+                    ProductVariant(sku="CAM-001-P-BR", size="P", color="Branco", in_stock=True)
+                ],
+            )
+
 
 class TestUpdateProduct:
     async def test_atualiza_so_os_campos_enviados(self, fake_repository) -> None:
@@ -172,3 +190,15 @@ class TestAddProductVariant:
         repetida = ProductVariant(sku="CAM-001-P-BR", size="P", color="Branco", in_stock=True)
         with pytest.raises(DuplicateVariantSku):
             await AddProductVariant(fake_repository).execute("CAM-001", repetida)
+
+    async def test_sku_de_variante_de_outro_produto_levanta_duplicate_variant_sku(
+        self, fake_repository
+    ) -> None:
+        # CAL-001-38 já é variante de CAL-001 — não pode ser reaproveitado
+        # como variante nova de CAM-001 (SKU de variante é único
+        # globalmente, não só dentro do produto-alvo).
+        de_outro_produto = ProductVariant(
+            sku="CAL-001-38", size="38", color="Azul", in_stock=True
+        )
+        with pytest.raises(DuplicateVariantSku):
+            await AddProductVariant(fake_repository).execute("CAM-001", de_outro_produto)

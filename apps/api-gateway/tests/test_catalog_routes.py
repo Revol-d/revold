@@ -51,6 +51,12 @@ class _FakeRepository:
     async def save_product(self, product):
         self._products[product.sku] = product
 
+    async def find_variant_owner(self, variant_sku):
+        for product in self._products.values():
+            if any(v.sku == variant_sku for v in product.variants):
+                return product.sku
+        return None
+
 
 _STAFF_USER = AuthenticatedUser(
     external_id="staff-1", provider="dev", email="staff@example.com", name="Staff",

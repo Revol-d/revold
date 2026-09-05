@@ -31,3 +31,10 @@ class ProductRepository(Protocol):
         """Cria ou atualiza um produto, substituindo suas variantes por completo
         (upsert por SKU)."""
         ...
+
+    async def find_variant_owner(self, variant_sku: str) -> str | None:
+        """Retorna o SKU do produto dono da variante com esse SKU, se existir
+        em qualquer produto do catálogo — SKU de variante é único
+        globalmente (é a mesma chave usada por core-inventory), não só
+        dentro de um produto."""
+        ...

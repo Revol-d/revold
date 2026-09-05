@@ -44,6 +44,12 @@ class FakeProductRepository:
     async def save_product(self, product: Product) -> None:
         self._products[product.sku] = product
 
+    async def find_variant_owner(self, variant_sku: str) -> str | None:
+        for product in self._products.values():
+            if any(v.sku == variant_sku for v in product.variants):
+                return product.sku
+        return None
+
 
 @pytest.fixture
 def sample_products() -> list[Product]:

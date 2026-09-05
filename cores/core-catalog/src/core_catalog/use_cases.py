@@ -101,6 +101,10 @@ class CreateProduct:
         if await self._repository.get_product(sku) is not None:
             raise DuplicateSku(sku)
 
+        for variant in variants:
+            if await self._repository.find_variant_owner(variant.sku) is not None:
+                raise DuplicateVariantSku(variant.sku)
+
         product = Product(
             sku=sku,
             name=name,
@@ -184,7 +188,10 @@ class AddProductVariant:
         if product is None:
             raise ProductNotFound(sku)
 
-        if any(v.sku == variant.sku for v in product.variants):
+        # SKU de variante é único globalmente (mesma chave usada pelo
+        # core-inventory), não só dentro deste produto — daí checar contra
+        # o catálogo inteiro, não só `product.variants`.
+        if await self._repository.find_variant_owner(variant.sku) is not None:
             raise DuplicateVariantSku(variant.sku)
 
         updated = Product(
