@@ -46,6 +46,7 @@ services:
       - ./adapters:/app/adapters
       - ./workers:/app/workers
       - ./apps/api-gateway:/app/apps/api-gateway
+      - ./alembic.ini:/app/alembic.ini
     depends_on:
       postgres:
         condition: service_healthy

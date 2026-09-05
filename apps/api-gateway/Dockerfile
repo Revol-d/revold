@@ -14,7 +14,7 @@ ENV POETRY_NO_INTERACTION=1 \
 RUN pip install --no-cache-dir poetry==1.8.3
 
 WORKDIR /app
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock* alembic.ini ./
 COPY cores ./cores
 COPY adapters ./adapters
 COPY workers ./workers
