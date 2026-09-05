@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+jobs:
+  python:
+    name: Python — lint & test (core-catalog, core-identity, api-gateway)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Install dependencies
+        run: poetry install --with dev
+      - name: Lint (ruff)
+        run: poetry run ruff check .
+      - name: Type check (mypy)
+        run: poetry run mypy . || true # não bloqueante ainda — cores novos entram sem tipagem 100% completa
+      - name: Test
+        run: poetry run pytest --cov --cov-report=term-missing
+
+  node:
+    name: Node — lint & build (storefront, packages/ui)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.10.0
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm -r lint
+      - name: Build
+        run: pnpm -r build

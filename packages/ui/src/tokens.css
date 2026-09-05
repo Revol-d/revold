@@ -1,0 +1,49 @@
+/* Design tokens do storefront — placeholder neutro.
+   Trocar estes valores pela identidade visual real da Nick quando definida
+   (ver referencia-frontend-storefront.md no projeto Claude, seção 4). */
+:root {
+  /* Cor — paleta neutra de placeholder */
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f5f4f2;
+  --color-fg: #1a1a1a;
+  --color-fg-muted: #5c5c5c;
+  --color-border: #e2e0dc;
+  --color-accent: #1a1a1a;
+  --color-accent-fg: #ffffff;
+  --color-danger: #b3261e;
+  --color-success: #1e6b3c;
+
+  /* Tipografia */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+
+  /* Espaçamento (escala de 4px) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+
+  /* Raio e elevação */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+
+  /* Motion — sempre checar prefers-reduced-motion antes de usar */
+  --motion-fast: 150ms;
+  --motion-base: 250ms;
+  --motion-easing: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+}
