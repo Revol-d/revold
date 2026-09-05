@@ -5,23 +5,35 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api_gateway.dependencies import get_product_repository
 from api_gateway.security import require_any_role
-from core_catalog.domain import CategoryNotFound, DuplicateSku, Money, Product, ProductNotFound, ProductVariant
+from core_catalog.domain import (
+    CategoryNotFound,
+    DuplicateSku,
+    DuplicateVariantSku,
+    Money,
+    Product,
+    ProductNotFound,
+    ProductVariant,
+)
 from core_catalog.ports import ProductRepository
 from core_catalog.schemas import (
     CategorySchema,
     CreateCategoryRequestSchema,
     CreateProductRequestSchema,
+    CreateProductVariantSchema,
     MoneySchema,
     ProductPageSchema,
     ProductSchema,
     ProductVariantSchema,
+    UpdateProductRequestSchema,
 )
 from core_catalog.use_cases import (
+    AddProductVariant,
     CreateCategory,
     CreateProduct,
     GetProduct,
     ListCategories,
     ListProducts,
+    UpdateProduct,
 )
 from core_identity.domain import AuthenticatedUser
 from core_identity.domain import Role as UserRole
@@ -106,6 +118,56 @@ async def create_product(
     except CategoryNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except DuplicateSku as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _product_to_schema(product)
+
+
+@router.patch("/products/{sku}", response_model=ProductSchema)
+async def update_product(
+    sku: str,
+    body: UpdateProductRequestSchema,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> ProductSchema:
+    try:
+        product = await UpdateProduct(repository).execute(
+            sku,
+            name=body.name,
+            category_slug=body.category_slug,
+            price=(
+                Money(amount=body.price.amount, currency=body.price.currency)
+                if body.price
+                else None
+            ),
+            description=body.description,
+            images=body.images,
+            original_price=(
+                Money(amount=body.original_price.amount, currency=body.original_price.currency)
+                if body.original_price
+                else None
+            ),
+            clear_original_price=body.clear_original_price,
+        )
+    except ProductNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CategoryNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _product_to_schema(product)
+
+
+@router.post("/products/{sku}/variants", response_model=ProductSchema, status_code=201)
+async def add_product_variant(
+    sku: str,
+    body: CreateProductVariantSchema,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> ProductSchema:
+    variant = ProductVariant(sku=body.sku, size=body.size, color=body.color, in_stock=body.in_stock)
+    try:
+        product = await AddProductVariant(repository).execute(sku, variant)
+    except ProductNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except DuplicateVariantSku as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _product_to_schema(product)
 

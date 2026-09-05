@@ -70,3 +70,12 @@ class DuplicateSku(Exception):
     def __init__(self, sku: str) -> None:
         super().__init__(f"Produto com SKU '{sku}' já existe")
         self.sku = sku
+
+
+class DuplicateVariantSku(Exception):
+    """Levantada ao tentar adicionar, a um produto, uma variante cujo SKU já
+    existe nesse mesmo produto."""
+
+    def __init__(self, sku: str) -> None:
+        super().__init__(f"Já existe uma variante com SKU '{sku}' neste produto")
+        self.sku = sku

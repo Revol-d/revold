@@ -36,11 +36,22 @@ export interface ProductVariantInput {
   in_stock: boolean;
 }
 
+export interface ProductVariant {
+  sku: string;
+  size: string;
+  color: string;
+  in_stock: boolean;
+}
+
 export interface Product {
   sku: string;
   name: string;
   description: string;
+  category: Category;
   price: Money;
+  original_price: Money | null;
+  variants: ProductVariant[];
+  images: string[];
 }
 
 export interface ProductPage {
@@ -136,6 +147,45 @@ export function createProduct(input: {
       description: input.description ?? "",
       variants: input.variants,
     }),
+  });
+}
+
+export function getProduct(sku: string): Promise<Product> {
+  return apiFetch<Product>(`/api/catalog/products/${encodeURIComponent(sku)}`);
+}
+
+export interface UpdateProductInput {
+  name?: string;
+  categorySlug?: string;
+  priceAmount?: string;
+  description?: string;
+  originalPriceAmount?: string;
+  clearOriginalPrice?: boolean;
+}
+
+export function updateProduct(sku: string, input: UpdateProductInput): Promise<Product> {
+  return apiFetch<Product>(`/api/catalog/products/${encodeURIComponent(sku)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      name: input.name,
+      category_slug: input.categorySlug,
+      price: input.priceAmount ? { amount: input.priceAmount, currency: "BRL" } : undefined,
+      description: input.description,
+      original_price: input.originalPriceAmount
+        ? { amount: input.originalPriceAmount, currency: "BRL" }
+        : undefined,
+      clear_original_price: input.clearOriginalPrice ?? false,
+    }),
+  });
+}
+
+export function addProductVariant(
+  sku: string,
+  variant: ProductVariantInput
+): Promise<Product> {
+  return apiFetch<Product>(`/api/catalog/products/${encodeURIComponent(sku)}/variants`, {
+    method: "POST",
+    body: JSON.stringify(variant),
   });
 }
 

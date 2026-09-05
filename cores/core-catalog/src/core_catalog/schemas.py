@@ -69,3 +69,16 @@ class CreateProductRequestSchema(BaseModel):
     images: list[str] = Field(default_factory=list)
     original_price: MoneySchema | None = None
     variants: list[CreateProductVariantSchema] = Field(default_factory=list)
+
+
+class UpdateProductRequestSchema(BaseModel):
+    """Todo campo é opcional: só o que for enviado é alterado. Não mexe nas
+    variantes (ver POST /products/{sku}/variants para isso)."""
+
+    name: str | None = None
+    category_slug: str | None = None
+    price: MoneySchema | None = None
+    description: str | None = None
+    images: list[str] | None = None
+    original_price: MoneySchema | None = None
+    clear_original_price: bool = False

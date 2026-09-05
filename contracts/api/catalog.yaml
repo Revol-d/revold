@@ -113,6 +113,67 @@ paths:
                 $ref: "#/components/schemas/Product"
         "404":
           description: Produto não encontrado
+    patch:
+      operationId: updateProduct
+      summary: >
+        Atualiza campos de um produto já existente (não mexe nas variantes —
+        ver /products/{sku}/variants) — uso administrativo, papel STAFF/ADMIN
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProductRequest" }
+      responses:
+        "200":
+          description: Atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Produto (ou nova categoria) não encontrado
+  /products/{sku}/variants:
+    post:
+      operationId: addProductVariant
+      summary: Adiciona uma variante nova a um produto já existente — uso administrativo, papel STAFF/ADMIN
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductVariant" }
+      responses:
+        "201":
+          description: Variante adicionada — retorna o produto atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Produto não encontrado
+        "409":
+          description: Já existe uma variante com esse SKU neste produto
 components:
   securitySchemes:
     sessionCookie:
@@ -216,3 +277,18 @@ components:
           type: array
           items: { $ref: "#/components/schemas/ProductVariant" }
           default: []
+    UpdateProductRequest:
+      type: object
+      description: >
+        Todo campo é opcional: só o que for enviado é alterado.
+        `clear_original_price: true` remove um preço original existente.
+      properties:
+        name: { type: string }
+        category_slug: { type: string }
+        price: { $ref: "#/components/schemas/Money" }
+        description: { type: string }
+        images:
+          type: array
+          items: { type: string, format: uri }
+        original_price: { $ref: "#/components/schemas/Money" }
+        clear_original_price: { type: boolean, default: false }

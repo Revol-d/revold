@@ -134,13 +134,21 @@ export default function EstoquePage() {
               <td className="py-2">{stock?.quantity_reserved ?? "—"}</td>
               <td className="py-2">{stock?.quantity_available ?? "—"}</td>
               <td className="py-2">
-                <button
-                  onClick={() => handleReceive(product.sku)}
-                  disabled={pending === product.sku}
-                  className="rounded bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50"
-                >
-                  {pending === product.sku ? "Repondo..." : "Repor estoque"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleReceive(product.sku)}
+                    disabled={pending === product.sku}
+                    className="rounded bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50"
+                  >
+                    {pending === product.sku ? "Repondo..." : "Repor estoque"}
+                  </button>
+                  <a
+                    href={`/produtos/${encodeURIComponent(product.sku)}/editar`}
+                    className="text-xs underline"
+                  >
+                    Editar
+                  </a>
+                </div>
               </td>
             </tr>
           ))}

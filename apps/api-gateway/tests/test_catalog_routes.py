@@ -174,3 +174,73 @@ async def test_create_product_sku_duplicado_retorna_409(client: AsyncClient) -> 
         },
     )
     assert response.status_code == 409
+
+
+async def test_update_product_sem_autenticacao_retorna_401(client: AsyncClient) -> None:
+    response = await client.patch("/api/catalog/products/CAM-001", json={"name": "X"})
+    assert response.status_code == 401
+
+
+async def test_update_product_com_papel_staff_atualiza_so_o_campo_enviado(
+    client: AsyncClient,
+) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.patch(
+        "/api/catalog/products/CAM-001", json={"name": "Camiseta Básica V2"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Camiseta Básica V2"
+    assert body["price"]["amount"] == "79.90"  # não enviado, continua igual
+
+
+async def test_update_product_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.patch("/api/catalog/products/NAO-EXISTE", json={"name": "X"})
+    assert response.status_code == 404
+
+
+async def test_update_product_categoria_nova_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.patch(
+        "/api/catalog/products/CAM-001", json={"category_slug": "nao-existe"}
+    )
+    assert response.status_code == 404
+
+
+async def test_add_product_variant_com_papel_staff_adiciona(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/variants",
+        json={"sku": "CAM-001-G-BR", "size": "G", "color": "Branco", "in_stock": True},
+    )
+    assert response.status_code == 201
+    variantes = [v["sku"] for v in response.json()["variants"]]
+    assert "CAM-001-G-BR" in variantes
+
+
+async def test_add_product_variant_produto_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/NAO-EXISTE/variants",
+        json={"sku": "X-1", "size": "U", "color": "Preto"},
+    )
+    assert response.status_code == 404
+
+
+async def test_add_product_variant_sku_duplicado_retorna_409(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/variants",
+        json={"sku": "CAM-001-P", "size": "P", "color": "Branco"},
+    )
+    assert response.status_code == 409
+
+
+async def test_add_product_variant_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/variants",
+        json={"sku": "CAM-001-GG", "size": "GG", "color": "Branco"},
+    )
+    assert response.status_code == 403

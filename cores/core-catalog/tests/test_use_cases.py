@@ -4,13 +4,22 @@ from decimal import Decimal
 
 import pytest
 
-from core_catalog.domain import CategoryNotFound, DuplicateSku, Money, ProductNotFound, ProductVariant
+from core_catalog.domain import (
+    CategoryNotFound,
+    DuplicateSku,
+    DuplicateVariantSku,
+    Money,
+    ProductNotFound,
+    ProductVariant,
+)
 from core_catalog.use_cases import (
+    AddProductVariant,
     CreateCategory,
     CreateProduct,
     GetProduct,
     ListCategories,
     ListProducts,
+    UpdateProduct,
 )
 
 
@@ -101,3 +110,65 @@ class TestCreateProduct:
                 price=Money(Decimal("59.90")),
                 variants=[],
             )
+
+
+class TestUpdateProduct:
+    async def test_atualiza_so_os_campos_enviados(self, fake_repository) -> None:
+        original = await GetProduct(fake_repository).execute("CAM-001")
+
+        updated = await UpdateProduct(fake_repository).execute(
+            "CAM-001", name="Camiseta Básica (Nova Coleção)"
+        )
+
+        assert updated.name == "Camiseta Básica (Nova Coleção)"
+        # Campos não enviados continuam iguais.
+        assert updated.price == original.price
+        assert updated.description == original.description
+        assert updated.variants == original.variants
+
+    async def test_atualiza_preco_e_categoria(self, fake_repository) -> None:
+        updated = await UpdateProduct(fake_repository).execute(
+            "CAM-001", price=Money(Decimal("89.90")), category_slug="calcas"
+        )
+        assert updated.price == Money(Decimal("89.90"))
+        assert updated.category.slug == "calcas"
+
+    async def test_clear_original_price_remove_preco_original(self, fake_repository) -> None:
+        await UpdateProduct(fake_repository).execute(
+            "CAM-001", original_price=Money(Decimal("99.90"))
+        )
+        updated = await UpdateProduct(fake_repository).execute(
+            "CAM-001", clear_original_price=True
+        )
+        assert updated.original_price is None
+
+    async def test_produto_inexistente_levanta_not_found(self, fake_repository) -> None:
+        with pytest.raises(ProductNotFound):
+            await UpdateProduct(fake_repository).execute("NAO-EXISTE", name="X")
+
+    async def test_categoria_nova_inexistente_levanta_category_not_found(
+        self, fake_repository
+    ) -> None:
+        with pytest.raises(CategoryNotFound):
+            await UpdateProduct(fake_repository).execute("CAM-001", category_slug="nao-existe")
+
+
+class TestAddProductVariant:
+    async def test_adiciona_variante_nova(self, fake_repository) -> None:
+        nova = ProductVariant(sku="CAM-001-G-BR", size="G", color="Branco", in_stock=True)
+        updated = await AddProductVariant(fake_repository).execute("CAM-001", nova)
+
+        assert nova in updated.variants
+        assert len(updated.variants) == 3
+
+    async def test_produto_inexistente_levanta_not_found(self, fake_repository) -> None:
+        variante = ProductVariant(sku="X-1", size="U", color="Preto", in_stock=True)
+        with pytest.raises(ProductNotFound):
+            await AddProductVariant(fake_repository).execute("NAO-EXISTE", variante)
+
+    async def test_sku_de_variante_duplicado_levanta_duplicate_variant_sku(
+        self, fake_repository
+    ) -> None:
+        repetida = ProductVariant(sku="CAM-001-P-BR", size="P", color="Branco", in_stock=True)
+        with pytest.raises(DuplicateVariantSku):
+            await AddProductVariant(fake_repository).execute("CAM-001", repetida)
