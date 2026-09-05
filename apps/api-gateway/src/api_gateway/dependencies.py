@@ -16,10 +16,12 @@ from adapters_external.checkout.whatsapp_clicktochat import WhatsAppClickToChatC
 from adapters_persistence.cart.redis_repository import RedisCartRepository
 from adapters_persistence.catalog.repository import PostgresProductRepository
 from adapters_persistence.db import make_engine, make_session_factory
+from adapters_persistence.inventory.repository import PostgresInventoryRepository
 from adapters_persistence.redis_client import make_redis_client
 from core_cart.ports import CartRepository
 from core_catalog.ports import ProductRepository
 from core_communication.ports import CheckoutHandoff
+from core_inventory.ports import InventoryRepository
 
 _engine = make_engine()
 _session_factory = make_session_factory(_engine)
@@ -45,6 +47,12 @@ async def get_cart_repository(
     redis: Redis = Depends(get_redis_client),
 ) -> CartRepository:
     return RedisCartRepository(redis)
+
+
+async def get_inventory_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> InventoryRepository:
+    return PostgresInventoryRepository(session)
 
 
 def get_checkout_handoff() -> CheckoutHandoff:

@@ -1,7 +1,9 @@
-"""core-inventory: bounded context de controle de estoque (PENDENTE).
+"""core-inventory: bounded context de controle de estoque.
 
-Escopo previsto: ajuste de estoque por variante (SKU), reserva de estoque
-durante o checkout manual, RBAC de quem pode alterar estoque (papel STAFF/
-ADMIN de core_identity.domain.Role). Depende de core-catalog (para os SKUs)
-e core-identity (para RBAC) já existirem, o que já é o caso.
+Mantém o nível de estoque por SKU (variante de produto): quantidade
+fisicamente disponível e quantidade reservada (comprometida com um
+carrinho em checkout, mas ainda não confirmada — ver ADR-0005, checkout
+manual via WhatsApp). Depende apenas dos próprios SKUs; não importa
+core_catalog nem core_cart (ADR-0002) — a orquestração entre eles vive no
+api-gateway.
 """

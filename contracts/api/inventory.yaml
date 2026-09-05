@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: Core Inventory API
+  version: "1.0.0"
+  description: >
+    Contrato do core-inventory (Contract-First, ver ADR-0002). Mantém o
+    nível de estoque por SKU: quantidade fisicamente em estoque e
+    quantidade reservada (comprometida com um carrinho em checkout, mas
+    ainda não baixada — o checkout do revold é manual via WhatsApp,
+    ADR-0005, então a baixa definitiva só acontece quando a venda é
+    confirmada manualmente).
+servers:
+  - url: /api/inventory
+paths:
+  /{sku}:
+    get:
+      operationId: getStockLevel
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockLevel" }
+        "404":
+          description: Nenhum registro de estoque para esse SKU
+
+  /{sku}/reserve:
+    post:
+      operationId: reserveStock
+      summary: Reserva estoque para um carrinho em checkout
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReserveStockRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockLevel" }
+        "404":
+          description: Nenhum registro de estoque para esse SKU
+        "422":
+          description: Estoque insuficiente
+
+  /{sku}/release:
+    post:
+      operationId: releaseStock
+      summary: Libera uma reserva de estoque (ex. carrinho abandonado)
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReleaseStockRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockLevel" }
+        "404":
+          description: Nenhum registro de estoque para esse SKU
+        "422":
+          description: Quantidade maior do que o reservado
+
+  /{sku}/receive:
+    post:
+      operationId: receiveStock
+      summary: Entrada/reposição de estoque (uso administrativo, papel STAFF/ADMIN)
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReceiveStockRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockLevel" }
+
+components:
+  schemas:
+    StockLevel:
+      type: object
+      required: [sku, quantity_on_hand, quantity_reserved, quantity_available]
+      properties:
+        sku: { type: string }
+        quantity_on_hand: { type: integer, minimum: 0 }
+        quantity_reserved: { type: integer, minimum: 0 }
+        quantity_available: { type: integer, minimum: 0 }
+    ReserveStockRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: integer, minimum: 1 }
+    ReleaseStockRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: integer, minimum: 1 }
+    ReceiveStockRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: integer, minimum: 1 }

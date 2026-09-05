@@ -1,8 +1,8 @@
 """Ponto de entrada FastAPI do api-gateway.
 
 Composição: monta os routers de cada core que já expõe API HTTP. Hoje
-core-catalog e core-cart; os demais cores entram aqui conforme forem
-implementados.
+core-catalog, core-cart e core-inventory; os demais cores entram aqui
+conforme forem implementados.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api_gateway.routers.cart import router as cart_router
 from api_gateway.routers.catalog import router as catalog_router
+from api_gateway.routers.inventory import router as inventory_router
 
 app = FastAPI(
     title="Revold API Gateway",
@@ -28,6 +29,7 @@ app.add_middleware(
 
 app.include_router(catalog_router)
 app.include_router(cart_router)
+app.include_router(inventory_router)
 
 
 @app.get("/health")
