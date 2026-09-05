@@ -27,5 +27,47 @@ services:
       timeout: 5s
       retries: 10
 
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+      target: dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://revold:revold_dev_only@postgres:5432/revold
+      DATABASE_URL_SYNC: postgresql+psycopg2://revold:revold_dev_only@postgres:5432/revold
+      REDIS_URL: redis://redis:6379/0
+      AUTH_PROVIDER: dev
+      CHECKOUT_PROVIDER: whatsapp-clicktochat
+    volumes:
+      - ./cores:/app/cores
+      - ./adapters:/app/adapters
+      - ./apps/api-gateway:/app/apps/api-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  storefront:
+    build:
+      context: .
+      dockerfile: apps/storefront/Dockerfile
+      target: dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_GATEWAY_URL: http://localhost:8000
+    volumes:
+      - ./apps/storefront:/repo/apps/storefront
+      - ./packages:/repo/packages
+      - /repo/apps/storefront/node_modules
+      - /repo/apps/storefront/.next
+    depends_on:
+      - api-gateway
+
 volumes:
   postgres_data:

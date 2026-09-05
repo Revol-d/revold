@@ -1,0 +1,13 @@
+**/__pycache__
+**/*.pyc
+.venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+_to_delete
+*.tar.gz

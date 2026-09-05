@@ -1,46 +1,48 @@
-.PHONY: dev setup clean test test-unit test-integration test-contract test-e2e coverage lint format build
+.PHONY: dev setup clean test test-unit test-integration test-contract test-e2e coverage lint format build migrate
+
+# Convenção do projeto: todo comando roda dentro de container Docker, nunca
+# direto na máquina de quem desenvolve — evita "funciona na minha máquina"
+# por causa de versão de Python/Node divergente (ver docs/guides/development.md).
 
 setup:
-	poetry install --with dev
-	pnpm install
+	docker compose build
 
 dev:
-	docker compose up -d postgres redis
-	poetry run uvicorn api_gateway.main:app --reload --app-dir apps/api-gateway/src --port 8000 &
-	pnpm --filter storefront dev
+	docker compose up --build
 
 clean:
-	docker compose down -v
-	rm -rf .venv node_modules apps/*/node_modules apps/*/.next
+	docker compose down -v --rmi local
 
 test:
-	poetry run pytest
+	docker compose run --rm api-gateway poetry run pytest
+	docker compose run --rm storefront pnpm test
 
 test-unit:
-	poetry run pytest -m "not integration and not e2e"
+	docker compose run --rm api-gateway poetry run pytest -m "not integration and not e2e"
 
 test-integration:
-	poetry run pytest -m integration
+	docker compose run --rm api-gateway poetry run pytest -m integration
 
 test-contract:
-	poetry run pytest -m contract
+	docker compose run --rm api-gateway poetry run pytest -m contract
 
 test-e2e:
-	pnpm --filter storefront exec playwright test
+	docker compose run --rm storefront pnpm exec playwright test
 
 coverage:
-	poetry run pytest --cov --cov-report=term-missing
+	docker compose run --rm api-gateway poetry run pytest --cov --cov-report=term-missing
 
 lint:
-	poetry run ruff check .
-	poetry run mypy .
-	pnpm -r lint
+	docker compose run --rm api-gateway poetry run ruff check .
+	docker compose run --rm api-gateway poetry run mypy .
+	docker compose run --rm storefront pnpm lint
 
 format:
-	poetry run ruff format .
-
-build:
-	pnpm -r build
+	docker compose run --rm api-gateway poetry run ruff format .
 
 migrate:
-	poetry run alembic upgrade head
+	docker compose run --rm api-gateway poetry run alembic upgrade head
+
+build:
+	docker build --target runtime -f apps/api-gateway/Dockerfile -t revold/api-gateway .
+	docker build --target runtime -f apps/storefront/Dockerfile -t revold/storefront .

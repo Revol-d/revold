@@ -4,9 +4,15 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api_gateway.dependencies import get_product_repository
-from core_catalog.domain import ProductNotFound
+from core_catalog.domain import Product, ProductNotFound
 from core_catalog.ports import ProductRepository
-from core_catalog.schemas import CategorySchema, ProductPageSchema, ProductSchema
+from core_catalog.schemas import (
+    CategorySchema,
+    MoneySchema,
+    ProductPageSchema,
+    ProductSchema,
+    ProductVariantSchema,
+)
 from core_catalog.use_cases import GetProduct, ListCategories, ListProducts
 
 router = APIRouter(prefix="/api/catalog", tags=["catalog"])
@@ -52,23 +58,22 @@ async def get_product(
     return _product_to_schema(product)
 
 
-def _product_to_schema(product) -> ProductSchema:
-    from core_catalog.domain import Product
-
-    assert isinstance(product, Product)
+def _product_to_schema(product: Product) -> ProductSchema:
     return ProductSchema(
         sku=product.sku,
         name=product.name,
         description=product.description,
         category=CategorySchema(slug=product.category.slug, name=product.category.name),
-        price={"amount": product.price.amount, "currency": product.price.currency},
+        price=MoneySchema(amount=product.price.amount, currency=product.price.currency),
         original_price=(
-            {"amount": product.original_price.amount, "currency": product.original_price.currency}
+            MoneySchema(
+                amount=product.original_price.amount, currency=product.original_price.currency
+            )
             if product.original_price
             else None
         ),
         variants=[
-            {"sku": v.sku, "size": v.size, "color": v.color, "in_stock": v.in_stock}
+            ProductVariantSchema(sku=v.sku, size=v.size, color=v.color, in_stock=v.in_stock)
             for v in product.variants
         ],
         images=product.images,
