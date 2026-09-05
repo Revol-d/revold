@@ -125,6 +125,15 @@ components:
         variant_label: { type: string, example: "M / Azul" }
         unit_price: { type: string, description: "decimal como string" }
         quantity: { type: integer, minimum: 1 }
+        available_quantity:
+          type: integer
+          nullable: true
+          minimum: 0
+          description: >
+            Quantidade disponível em core-inventory no momento da consulta,
+            ou null se o SKU ainda não tem estoque cadastrado. Informativo
+            apenas — não bloqueia adicionar ao carrinho; a reserva de
+            verdade só acontece no checkout (ver POST /{cart_id}/checkout).
     Cart:
       type: object
       required: [cart_id, items, total, currency]

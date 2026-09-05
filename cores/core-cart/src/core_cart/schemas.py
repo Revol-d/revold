@@ -12,6 +12,15 @@ class CartItemSchema(BaseModel):
     variant_label: str
     unit_price: Decimal
     quantity: int = Field(ge=1)
+    available_quantity: int | None = Field(
+        default=None,
+        description=(
+            "Quantidade disponível em core-inventory no momento da consulta, "
+            "ou null se o SKU ainda não tem estoque cadastrado. Informativo "
+            "apenas — não bloqueia adicionar ao carrinho; a reserva de "
+            "verdade só acontece no checkout."
+        ),
+    )
 
 
 class CartSchema(BaseModel):

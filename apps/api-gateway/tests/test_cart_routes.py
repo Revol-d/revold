@@ -118,6 +118,45 @@ async def test_add_item_e_get_cart(client: AsyncClient) -> None:
     assert Decimal(str(body["total"])) == Decimal("159.80")
 
 
+async def test_add_item_sem_estoque_cadastrado_retorna_available_quantity_null(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/cart/c1/items",
+        json={"sku": "NAO-RASTREADO", "name": "Item", "variant_label": "U", "unit_price": "10", "quantity": 1},
+    )
+    assert response.status_code == 200
+    assert response.json()["items"][0]["available_quantity"] is None
+
+
+async def test_get_cart_reflete_disponibilidade_de_estoque(
+    client: AsyncClient, fake_inventory_repository: _FakeInventoryRepository
+) -> None:
+    await fake_inventory_repository.save(StockLevel(sku="A", quantity_on_hand=10, quantity_reserved=3))
+    await client.post(
+        "/api/cart/c1/items",
+        json={"sku": "A", "name": "Camiseta", "variant_label": "M", "unit_price": "10", "quantity": 1},
+    )
+    response = await client.get("/api/cart/c1")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["available_quantity"] == 7
+
+
+async def test_add_item_nao_bloqueia_mesmo_sem_estoque_disponivel(
+    client: AsyncClient, fake_inventory_repository: _FakeInventoryRepository
+) -> None:
+    """Adicionar ao carrinho é só uma intenção — não reserva nada. A
+    reserva de verdade (e o bloqueio por falta de estoque) só acontece no
+    checkout (ver test_checkout_com_estoque_insuficiente_retorna_422)."""
+    await fake_inventory_repository.save(StockLevel(sku="A", quantity_on_hand=0))
+    response = await client.post(
+        "/api/cart/c1/items",
+        json={"sku": "A", "name": "Camiseta", "variant_label": "M", "unit_price": "10", "quantity": 5},
+    )
+    assert response.status_code == 200
+    assert response.json()["items"][0]["available_quantity"] == 0
+
+
 async def test_update_item_quantity(client: AsyncClient) -> None:
     await client.post(
         "/api/cart/c1/items",

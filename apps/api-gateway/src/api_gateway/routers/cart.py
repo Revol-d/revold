@@ -40,26 +40,39 @@ from core_communication.domain import CartSummary, CartSummaryLine
 from core_communication.ports import CheckoutHandoff
 from core_inventory.domain import InsufficientStock, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
-from core_inventory.use_cases import ReleaseStock, ReserveStock
+from core_inventory.use_cases import GetStockLevel, ReleaseStock, ReserveStock
 from core_notification.ports import NotificationChannel
 from core_notification.use_cases import NotifyNewCheckout
 
 router = APIRouter(prefix="/api/cart", tags=["cart"])
 
 
-def _cart_to_schema(cart: Cart) -> CartSchema:
+async def _available_quantity(sku: str, inventory_repository: InventoryRepository) -> int | None:
+    """Consulta informativa de estoque — nunca bloqueia, só documenta na
+    resposta quanto há disponível. SKU sem StockLevel cadastrado (ainda não
+    rastreado) retorna None."""
+    try:
+        stock = await GetStockLevel(inventory_repository).execute(sku)
+    except StockLevelNotFound:
+        return None
+    return stock.quantity_available
+
+
+async def _cart_to_schema(cart: Cart, inventory_repository: InventoryRepository) -> CartSchema:
+    items = [
+        CartItemSchema(
+            sku=i.sku,
+            name=i.name,
+            variant_label=i.variant_label,
+            unit_price=i.unit_price.amount,
+            quantity=i.quantity,
+            available_quantity=await _available_quantity(i.sku, inventory_repository),
+        )
+        for i in cart.items
+    ]
     return CartSchema(
         cart_id=cart.cart_id,
-        items=[
-            CartItemSchema(
-                sku=i.sku,
-                name=i.name,
-                variant_label=i.variant_label,
-                unit_price=i.unit_price.amount,
-                quantity=i.quantity,
-            )
-            for i in cart.items
-        ],
+        items=items,
         total=cart.total().amount,
         currency=cart.currency,
     )
@@ -90,10 +103,12 @@ def _summary_to_text(summary: CartSummary) -> str:
 
 @router.get("/{cart_id}", response_model=CartSchema)
 async def get_cart(
-    cart_id: str, repository: CartRepository = Depends(get_cart_repository)
+    cart_id: str,
+    repository: CartRepository = Depends(get_cart_repository),
+    inventory_repository: InventoryRepository = Depends(get_inventory_repository),
 ) -> CartSchema:
     cart = await GetOrCreateCart(repository).execute(cart_id)
-    return _cart_to_schema(cart)
+    return await _cart_to_schema(cart, inventory_repository)
 
 
 @router.delete("/{cart_id}", status_code=204)
@@ -109,6 +124,7 @@ async def add_item(
     cart_id: str,
     body: AddItemRequestSchema,
     repository: CartRepository = Depends(get_cart_repository),
+    inventory_repository: InventoryRepository = Depends(get_inventory_repository),
 ) -> CartSchema:
     cart = await AddItem(repository).execute(
         cart_id,
@@ -118,7 +134,7 @@ async def add_item(
         unit_price_amount=str(body.unit_price),
         quantity=body.quantity,
     )
-    return _cart_to_schema(cart)
+    return await _cart_to_schema(cart, inventory_repository)
 
 
 @router.patch("/{cart_id}/items/{sku}", response_model=CartSchema)
@@ -127,23 +143,27 @@ async def update_item_quantity(
     sku: str,
     body: UpdateQuantityRequestSchema,
     repository: CartRepository = Depends(get_cart_repository),
+    inventory_repository: InventoryRepository = Depends(get_inventory_repository),
 ) -> CartSchema:
     try:
         cart = await UpdateItemQuantity(repository).execute(cart_id, sku, body.quantity)
     except CartItemNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _cart_to_schema(cart)
+    return await _cart_to_schema(cart, inventory_repository)
 
 
 @router.delete("/{cart_id}/items/{sku}", response_model=CartSchema)
 async def remove_item(
-    cart_id: str, sku: str, repository: CartRepository = Depends(get_cart_repository)
+    cart_id: str,
+    sku: str,
+    repository: CartRepository = Depends(get_cart_repository),
+    inventory_repository: InventoryRepository = Depends(get_inventory_repository),
 ) -> CartSchema:
     try:
         cart = await RemoveItem(repository).execute(cart_id, sku)
     except CartItemNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return _cart_to_schema(cart)
+    return await _cart_to_schema(cart, inventory_repository)
 
 
 async def _reserve_cart_stock(
