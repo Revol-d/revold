@@ -52,6 +52,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   storefront:
     build:
@@ -75,7 +80,8 @@ services:
       - /repo/apps/storefront/node_modules
       - /repo/apps/storefront/.next
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
 
   admin-dashboard:
     build:
@@ -93,7 +99,8 @@ services:
       - /repo/apps/admin-dashboard/node_modules
       - /repo/apps/admin-dashboard/.next
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
 
 volumes:
   postgres_data:

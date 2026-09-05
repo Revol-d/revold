@@ -22,6 +22,14 @@ COPY apps/api-gateway ./apps/api-gateway
 
 RUN poetry install --only main
 
+# Usado pelo docker-compose (condition: service_healthy) para o
+# storefront/admin-dashboard só tentarem falar com a API depois que o
+# Uvicorn realmente estiver de pé — sem isso, um fetch server-side do
+# Next.js logo depois do `docker compose up` pode chegar antes da API subir
+# e falhar com "fetch failed" (conexão recusada), mesmo com a URL certa.
+HEALTHCHECK --interval=5s --timeout=5s --retries=20 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
 FROM base AS dev
 RUN poetry install --with dev
 EXPOSE 8000
