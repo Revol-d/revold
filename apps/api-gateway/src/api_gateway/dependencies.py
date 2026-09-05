@@ -14,15 +14,18 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters_external.checkout.whatsapp_clicktochat import WhatsAppClickToChatCheckout
+from adapters_external.identity.factory import get_identity_provider as _get_identity_provider
 from adapters_external.notification.logging_channel import LoggingNotificationChannel
 from adapters_persistence.cart.redis_repository import RedisCartRepository
 from adapters_persistence.catalog.repository import PostgresProductRepository
 from adapters_persistence.db import make_engine, make_session_factory
+from adapters_persistence.identity.redis_session_repository import RedisSessionRepository
 from adapters_persistence.inventory.repository import PostgresInventoryRepository
 from adapters_persistence.redis_client import make_redis_client
 from core_cart.ports import CartRepository
 from core_catalog.ports import ProductRepository
 from core_communication.ports import CheckoutHandoff
+from core_identity.ports import IdentityProvider, SessionRepository
 from core_inventory.ports import InventoryRepository
 from core_notification.ports import NotificationChannel
 
@@ -57,6 +60,18 @@ async def get_inventory_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> InventoryRepository:
     return PostgresInventoryRepository(session)
+
+
+async def get_session_repository(
+    redis: Redis = Depends(get_redis_client),
+) -> SessionRepository:
+    return RedisSessionRepository(redis)
+
+
+def get_identity_provider() -> IdentityProvider:
+    # Seleciona dev/azure-ad/google via AUTH_PROVIDER (ver
+    # adapters_external.identity.factory e ADR-0003).
+    return _get_identity_provider()
 
 
 def get_checkout_handoff() -> CheckoutHandoff:

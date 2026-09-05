@@ -32,7 +32,12 @@ paths:
   /{sku}/reserve:
     post:
       operationId: reserveStock
-      summary: Reserva estoque para um carrinho em checkout
+      summary: >
+        Reserva estoque (uso administrativo, papel STAFF/ADMIN — ver
+        ADR-0010; o checkout do cliente reserva internamente, sem passar
+        por este endpoint HTTP)
+      security:
+        - sessionCookie: []
       parameters:
         - name: sku
           in: path
@@ -49,6 +54,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StockLevel" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
         "404":
           description: Nenhum registro de estoque para esse SKU
         "422":
@@ -57,7 +66,12 @@ paths:
   /{sku}/release:
     post:
       operationId: releaseStock
-      summary: Libera uma reserva de estoque (ex. carrinho abandonado)
+      summary: >
+        Libera uma reserva de estoque (uso administrativo, papel
+        STAFF/ADMIN — ver ADR-0010; a compensação do saga de checkout
+        libera internamente, sem passar por este endpoint HTTP)
+      security:
+        - sessionCookie: []
       parameters:
         - name: sku
           in: path
@@ -74,6 +88,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StockLevel" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
         "404":
           description: Nenhum registro de estoque para esse SKU
         "422":
@@ -83,6 +101,8 @@ paths:
     post:
       operationId: receiveStock
       summary: Entrada/reposição de estoque (uso administrativo, papel STAFF/ADMIN)
+      security:
+        - sessionCookie: []
       parameters:
         - name: sku
           in: path
@@ -99,8 +119,20 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StockLevel" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
 
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_id
+      description: >
+        Cookie HttpOnly de sessão (ADR-0010) — obtido via
+        POST /api/auth/login/complete (ver contracts/api/identity.yaml).
   schemas:
     StockLevel:
       type: object

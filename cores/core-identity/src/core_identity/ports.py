@@ -22,3 +22,17 @@ class IdentityProvider(Protocol):
     async def complete_login(self, *, code: str, state: str) -> AuthenticatedUser:
         """Troca o código de autorização pela identidade autenticada."""
         ...
+
+
+class SessionRepository(Protocol):
+    """Porta de sessão (ADR-0010). O cookie do navegador carrega só o id
+    opaco devolvido por `create` — nenhum dado de usuário nem claim viaja
+    para o cliente."""
+
+    async def create(self, user: AuthenticatedUser) -> str:
+        """Cria uma sessão para o usuário e devolve o session_id opaco."""
+        ...
+
+    async def get(self, session_id: str) -> AuthenticatedUser | None: ...
+
+    async def delete(self, session_id: str) -> None: ...

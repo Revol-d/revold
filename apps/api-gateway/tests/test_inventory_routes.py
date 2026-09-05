@@ -7,8 +7,18 @@ from httpx import ASGITransport, AsyncClient
 
 from api_gateway.dependencies import get_inventory_repository, get_notification_channel
 from api_gateway.main import app
+from api_gateway.security import get_current_user
+from core_identity.domain import AuthenticatedUser, Role
 from core_inventory.domain import StockLevel
 from core_notification.domain import Notification
+
+_STAFF_USER = AuthenticatedUser(
+    external_id="staff-1",
+    provider="dev",
+    email="staff@example.com",
+    name="Staff",
+    roles=(Role.STAFF,),
+)
 
 
 class _FakeInventoryRepository:
@@ -40,6 +50,10 @@ def override_dependencies(fake_notification_channel: _FakeNotificationChannel):
     fake_repo = _FakeInventoryRepository()
     app.dependency_overrides[get_inventory_repository] = lambda: fake_repo
     app.dependency_overrides[get_notification_channel] = lambda: fake_notification_channel
+    # Endpoints administrativos (receive/reserve/release) exigem STAFF/ADMIN
+    # (ADR-0010) — os testes de contrato aqui autenticam como staff; os
+    # testes de RBAC em si (401/403) ficam em test_inventory_rbac.py.
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
     yield
     app.dependency_overrides.clear()
 

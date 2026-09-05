@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: Core Identity API
+  version: "1.0.0"
+  description: >
+    Contrato do core-identity (Contract-First, ver ADR-0002). Autenticação é
+    sempre federada — nunca há senha local (ADR-0003) — e a sessão do
+    usuário autenticado é mantida no servidor (Redis) e referenciada por um
+    cookie HttpOnly no navegador, nunca por um token no corpo/localStorage
+    (ADR-0010).
+servers:
+  - url: /api/auth
+paths:
+  /login/start:
+    post:
+      operationId: startLogin
+      summary: Gera a URL de autorização do provedor federado configurado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartLoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginChallenge" }
+
+  /login/complete:
+    post:
+      operationId: completeLogin
+      summary: >
+        Troca code+state pelo usuário autenticado e abre uma sessão
+        (Set-Cookie: session_id, HttpOnly)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompleteLoginRequest" }
+      responses:
+        "200":
+          description: OK
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthenticatedUser" }
+
+  /logout:
+    post:
+      operationId: logout
+      summary: Encerra a sessão atual (apaga no Redis e limpa o cookie)
+      responses:
+        "204":
+          description: Sessão encerrada
+
+  /me:
+    get:
+      operationId: getCurrentUser
+      summary: Retorna o usuário autenticado da sessão atual
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthenticatedUser" }
+        "401":
+          description: Sem sessão válida (cookie ausente, inválido ou expirado)
+
+components:
+  schemas:
+    StartLoginRequest:
+      type: object
+      required: [redirect_uri]
+      properties:
+        redirect_uri: { type: string }
+    LoginChallenge:
+      type: object
+      required: [authorize_url, state]
+      properties:
+        authorize_url: { type: string }
+        state: { type: string }
+    CompleteLoginRequest:
+      type: object
+      required: [code, state]
+      properties:
+        code: { type: string }
+        state: { type: string }
+    AuthenticatedUser:
+      type: object
+      required: [external_id, provider, email, name, roles]
+      properties:
+        external_id: { type: string }
+        provider: { type: string }
+        email: { type: string }
+        name: { type: string }
+        roles:
+          type: array
+          items: { type: string, enum: [customer, staff, admin] }

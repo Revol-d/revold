@@ -9,6 +9,8 @@ from api_gateway.dependencies import (
     get_notification_channel,
 )
 from api_gateway.orchestration import notify_if_low_stock
+from api_gateway.security import require_any_role
+from core_identity.domain import AuthenticatedUser, Role
 from core_inventory.domain import InsufficientStock, StockLevel, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
 from core_inventory.schemas import (
@@ -55,7 +57,11 @@ async def reserve_stock(
     repository: InventoryRepository = Depends(get_inventory_repository),
     notification_channel: NotificationChannel = Depends(get_notification_channel),
     low_stock_threshold: int = Depends(get_low_stock_threshold),
+    _staff: AuthenticatedUser = Depends(require_any_role(Role.STAFF, Role.ADMIN)),
 ) -> StockLevelSchema:
+    # RBAC (ADR-0010): endpoint administrativo — o fluxo de checkout do
+    # cliente reserva estoque chamando ReserveStock diretamente (ver
+    # api_gateway.routers.cart), não por este endpoint HTTP.
     try:
         stock = await ReserveStock(repository).execute(sku, body.quantity)
     except StockLevelNotFound as exc:
@@ -71,7 +77,11 @@ async def release_stock(
     sku: str,
     body: ReleaseStockRequestSchema,
     repository: InventoryRepository = Depends(get_inventory_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(Role.STAFF, Role.ADMIN)),
 ) -> StockLevelSchema:
+    # RBAC (ADR-0010): endpoint administrativo — a compensação de reserva
+    # no saga de checkout chama ReleaseStock diretamente (ver
+    # api_gateway.routers.cart), não por este endpoint HTTP.
     try:
         stock = await ReleaseStock(repository).execute(sku, body.quantity)
     except StockLevelNotFound as exc:
@@ -86,9 +96,9 @@ async def receive_stock(
     sku: str,
     body: ReceiveStockRequestSchema,
     repository: InventoryRepository = Depends(get_inventory_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(Role.STAFF, Role.ADMIN)),
 ) -> StockLevelSchema:
-    # Reposição de estoque: uso administrativo (papel STAFF/ADMIN, RBAC via
-    # core_identity — aplicado numa camada futura de autorização do
-    # api-gateway; ainda não implementado nesta rodada).
+    # Reposição de estoque: uso administrativo (papel STAFF/ADMIN via
+    # RBAC, ver ADR-0010 e api_gateway.security.require_any_role).
     stock = await ReceiveStock(repository).execute(sku, body.quantity)
     return _stock_to_schema(stock)

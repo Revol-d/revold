@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api_gateway.routers.cart import router as cart_router
 from api_gateway.routers.catalog import router as catalog_router
+from api_gateway.routers.identity import router as identity_router
 from api_gateway.routers.inventory import router as inventory_router
 
 app = FastAPI(
@@ -29,6 +30,7 @@ app.add_middleware(
 
 app.include_router(catalog_router)
 app.include_router(cart_router)
+app.include_router(identity_router)
 app.include_router(inventory_router)
 
 
