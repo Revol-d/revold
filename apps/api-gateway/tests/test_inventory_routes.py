@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_inventory_repository
+from api_gateway.dependencies import get_inventory_repository, get_notification_channel
 from api_gateway.main import app
 from core_inventory.domain import StockLevel
+from core_notification.domain import Notification
 
 
 class _FakeInventoryRepository:
@@ -21,10 +22,24 @@ class _FakeInventoryRepository:
         self._levels[stock_level.sku] = stock_level
 
 
+class _FakeNotificationChannel:
+    def __init__(self) -> None:
+        self.sent: list[Notification] = []
+
+    async def send(self, notification: Notification) -> None:
+        self.sent.append(notification)
+
+
+@pytest.fixture
+def fake_notification_channel() -> _FakeNotificationChannel:
+    return _FakeNotificationChannel()
+
+
 @pytest.fixture(autouse=True)
-def override_dependencies():
+def override_dependencies(fake_notification_channel: _FakeNotificationChannel):
     fake_repo = _FakeInventoryRepository()
     app.dependency_overrides[get_inventory_repository] = lambda: fake_repo
+    app.dependency_overrides[get_notification_channel] = lambda: fake_notification_channel
     yield
     app.dependency_overrides.clear()
 
@@ -97,3 +112,25 @@ async def test_reserve_com_quantidade_zero_retorna_erro_de_validacao(client: Asy
     await client.post("/api/inventory/A/receive", json={"quantity": 10})
     response = await client.post("/api/inventory/A/reserve", json={"quantity": 0})
     assert response.status_code == 422
+
+
+async def test_reserve_abaixo_do_limiar_notifica_low_stock(
+    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+) -> None:
+    # limiar padrão (LOW_STOCK_THRESHOLD) é 5
+    await client.post("/api/inventory/A/receive", json={"quantity": 10})
+    response = await client.post("/api/inventory/A/reserve", json={"quantity": 8})
+    assert response.status_code == 200
+    assert len(fake_notification_channel.sent) == 1
+    notification = fake_notification_channel.sent[0]
+    assert notification.event_type == "low_stock"
+    assert "A" in notification.message
+
+
+async def test_reserve_acima_do_limiar_nao_notifica(
+    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+) -> None:
+    await client.post("/api/inventory/A/receive", json={"quantity": 10})
+    response = await client.post("/api/inventory/A/reserve", json={"quantity": 2})
+    assert response.status_code == 200
+    assert fake_notification_channel.sent == []

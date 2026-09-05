@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from api_gateway.dependencies import get_inventory_repository
+from api_gateway.dependencies import (
+    get_inventory_repository,
+    get_low_stock_threshold,
+    get_notification_channel,
+)
+from api_gateway.orchestration import notify_if_low_stock
 from core_inventory.domain import InsufficientStock, StockLevel, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
 from core_inventory.schemas import (
@@ -18,6 +23,7 @@ from core_inventory.use_cases import (
     ReleaseStock,
     ReserveStock,
 )
+from core_notification.ports import NotificationChannel
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -47,6 +53,8 @@ async def reserve_stock(
     sku: str,
     body: ReserveStockRequestSchema,
     repository: InventoryRepository = Depends(get_inventory_repository),
+    notification_channel: NotificationChannel = Depends(get_notification_channel),
+    low_stock_threshold: int = Depends(get_low_stock_threshold),
 ) -> StockLevelSchema:
     try:
         stock = await ReserveStock(repository).execute(sku, body.quantity)
@@ -54,6 +62,7 @@ async def reserve_stock(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InsufficientStock as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await notify_if_low_stock(stock, notification_channel, low_stock_threshold)
     return _stock_to_schema(stock)
 
 

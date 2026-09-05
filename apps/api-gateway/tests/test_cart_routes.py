@@ -13,10 +13,12 @@ from api_gateway.dependencies import (
     get_cart_repository,
     get_checkout_handoff,
     get_inventory_repository,
+    get_notification_channel,
 )
 from api_gateway.main import app
 from core_cart.domain import Cart
 from core_inventory.domain import StockLevel
+from core_notification.domain import Notification
 
 
 class _FakeCartRepository:
@@ -58,17 +60,34 @@ class _FailingCheckoutHandoff:
         raise ValueError("NICK_WHATSAPP_NUMBER não configurado")
 
 
+class _FakeNotificationChannel:
+    def __init__(self) -> None:
+        self.sent: list[Notification] = []
+
+    async def send(self, notification: Notification) -> None:
+        self.sent.append(notification)
+
+
 @pytest.fixture
 def fake_inventory_repository() -> _FakeInventoryRepository:
     return _FakeInventoryRepository()
 
 
+@pytest.fixture
+def fake_notification_channel() -> _FakeNotificationChannel:
+    return _FakeNotificationChannel()
+
+
 @pytest.fixture(autouse=True)
-def override_dependencies(fake_inventory_repository: _FakeInventoryRepository):
+def override_dependencies(
+    fake_inventory_repository: _FakeInventoryRepository,
+    fake_notification_channel: _FakeNotificationChannel,
+):
     fake_repo = _FakeCartRepository()
     app.dependency_overrides[get_cart_repository] = lambda: fake_repo
     app.dependency_overrides[get_inventory_repository] = lambda: fake_inventory_repository
     app.dependency_overrides[get_checkout_handoff] = lambda: _FakeCheckoutHandoff()
+    app.dependency_overrides[get_notification_channel] = lambda: fake_notification_channel
     yield
     app.dependency_overrides.clear()
 
@@ -229,3 +248,46 @@ async def test_checkout_libera_reserva_quando_handoff_falha(
     stock = await fake_inventory_repository.get("A")
     assert stock is not None
     assert stock.quantity_reserved == 0  # reserva foi desfeita, não fica presa
+
+
+async def test_checkout_bem_sucedido_notifica_novo_checkout(
+    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+) -> None:
+    await client.post(
+        "/api/cart/c1/items",
+        json={"sku": "A", "name": "Camiseta", "variant_label": "M", "unit_price": "50", "quantity": 2},
+    )
+    response = await client.post("/api/cart/c1/checkout")
+    assert response.status_code == 200
+    assert len(fake_notification_channel.sent) == 1
+    notification = fake_notification_channel.sent[0]
+    assert notification.event_type == "new_checkout"
+    assert "c1" in notification.message
+    assert "Camiseta" in notification.message
+
+
+async def test_checkout_com_erro_nao_notifica(
+    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+) -> None:
+    response = await client.post("/api/cart/c1/checkout")  # carrinho vazio -> 422
+    assert response.status_code == 422
+    assert fake_notification_channel.sent == []
+
+
+async def test_checkout_reserva_estoque_baixo_notifica_low_stock(
+    client: AsyncClient,
+    fake_inventory_repository: _FakeInventoryRepository,
+    fake_notification_channel: _FakeNotificationChannel,
+) -> None:
+    # limiar padrão (LOW_STOCK_THRESHOLD) é 5; deixar 2 disponíveis dispara o aviso
+    await fake_inventory_repository.save(StockLevel(sku="A", quantity_on_hand=4))
+    await client.post(
+        "/api/cart/c1/items",
+        json={"sku": "A", "name": "Camiseta", "variant_label": "M", "unit_price": "50", "quantity": 2},
+    )
+    response = await client.post("/api/cart/c1/checkout")
+    assert response.status_code == 200
+    event_types = [n.event_type for n in fake_notification_channel.sent]
+    assert "low_stock" in event_types
+    low_stock_notification = next(n for n in fake_notification_channel.sent if n.event_type == "low_stock")
+    assert "A" in low_stock_notification.message

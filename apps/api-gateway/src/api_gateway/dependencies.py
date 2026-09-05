@@ -6,6 +6,7 @@ pelas suas portas e casos de uso.
 """
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
 
 from fastapi import Depends
@@ -13,6 +14,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters_external.checkout.whatsapp_clicktochat import WhatsAppClickToChatCheckout
+from adapters_external.notification.logging_channel import LoggingNotificationChannel
 from adapters_persistence.cart.redis_repository import RedisCartRepository
 from adapters_persistence.catalog.repository import PostgresProductRepository
 from adapters_persistence.db import make_engine, make_session_factory
@@ -22,10 +24,12 @@ from core_cart.ports import CartRepository
 from core_catalog.ports import ProductRepository
 from core_communication.ports import CheckoutHandoff
 from core_inventory.ports import InventoryRepository
+from core_notification.ports import NotificationChannel
 
 _engine = make_engine()
 _session_factory = make_session_factory(_engine)
 _redis_client = make_redis_client()
+_notification_channel = LoggingNotificationChannel()
 
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:
@@ -60,3 +64,15 @@ def get_checkout_handoff() -> CheckoutHandoff:
     # (ADR-0005). Trocar para a WhatsApp Business API oficial, quando
     # existir, é só mudar o que esta função retorna.
     return WhatsAppClickToChatCheckout()
+
+
+def get_notification_channel() -> NotificationChannel:
+    # Stand-in que só loga/guarda em memória (ver
+    # adapters_external.notification.logging_channel) — trocar por
+    # WhatsApp Business API ou e-mail real é só mudar o que esta função
+    # retorna; a porta NotificationChannel não muda.
+    return _notification_channel
+
+
+def get_low_stock_threshold() -> int:
+    return int(os.environ.get("LOW_STOCK_THRESHOLD", "5"))

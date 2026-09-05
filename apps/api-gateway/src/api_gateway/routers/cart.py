@@ -15,7 +15,10 @@ from api_gateway.dependencies import (
     get_cart_repository,
     get_checkout_handoff,
     get_inventory_repository,
+    get_low_stock_threshold,
+    get_notification_channel,
 )
+from api_gateway.orchestration import notify_if_low_stock
 from core_cart.domain import Cart, CartItemNotFound, EmptyCart
 from core_cart.ports import CartRepository
 from core_cart.schemas import (
@@ -38,6 +41,8 @@ from core_communication.ports import CheckoutHandoff
 from core_inventory.domain import InsufficientStock, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
 from core_inventory.use_cases import ReleaseStock, ReserveStock
+from core_notification.ports import NotificationChannel
+from core_notification.use_cases import NotifyNewCheckout
 
 router = APIRouter(prefix="/api/cart", tags=["cart"])
 
@@ -74,6 +79,13 @@ def _cart_to_summary(cart: Cart) -> CartSummary:
         total_amount=str(cart.total().amount),
         currency=cart.currency,
     )
+
+
+def _summary_to_text(summary: CartSummary) -> str:
+    lines = [
+        f"{line.quantity}x {line.product_name} ({line.variant_label})" for line in summary.lines
+    ]
+    return f"{', '.join(lines)} — total {summary.total_amount} {summary.currency}"
 
 
 @router.get("/{cart_id}", response_model=CartSchema)
@@ -134,7 +146,12 @@ async def remove_item(
     return _cart_to_schema(cart)
 
 
-async def _reserve_cart_stock(cart: Cart, inventory_repository: InventoryRepository) -> None:
+async def _reserve_cart_stock(
+    cart: Cart,
+    inventory_repository: InventoryRepository,
+    notification_channel: NotificationChannel,
+    low_stock_threshold: int,
+) -> None:
     """Reserva (não baixa) o estoque de cada item do carrinho antes do handoff
     de checkout (ADR-0005: a baixa definitiva só acontece quando a venda é
     confirmada manualmente pelo WhatsApp — ver core_inventory.use_cases).
@@ -152,10 +169,11 @@ async def _reserve_cart_stock(cart: Cart, inventory_repository: InventoryReposit
     try:
         for item in cart.items:
             try:
-                await ReserveStock(inventory_repository).execute(item.sku, item.quantity)
+                stock = await ReserveStock(inventory_repository).execute(item.sku, item.quantity)
             except StockLevelNotFound:
                 continue
             reserved.append((item.sku, item.quantity))
+            await notify_if_low_stock(stock, notification_channel, low_stock_threshold)
     except InsufficientStock:
         for sku, quantity in reserved:
             await ReleaseStock(inventory_repository).execute(sku, quantity)
@@ -168,6 +186,8 @@ async def start_checkout(
     repository: CartRepository = Depends(get_cart_repository),
     inventory_repository: InventoryRepository = Depends(get_inventory_repository),
     checkout: CheckoutHandoff = Depends(get_checkout_handoff),
+    notification_channel: NotificationChannel = Depends(get_notification_channel),
+    low_stock_threshold: int = Depends(get_low_stock_threshold),
 ) -> CheckoutHandoffResponseSchema:
     try:
         cart = await GetCartForCheckout(repository).execute(cart_id)
@@ -175,12 +195,15 @@ async def start_checkout(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     try:
-        await _reserve_cart_stock(cart, inventory_repository)
+        await _reserve_cart_stock(
+            cart, inventory_repository, notification_channel, low_stock_threshold
+        )
     except InsufficientStock as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    summary = _cart_to_summary(cart)
     try:
-        url = checkout.build_handoff(_cart_to_summary(cart))
+        url = checkout.build_handoff(summary)
     except ValueError as exc:
         # o estoque já reservado não deve ficar preso se o handoff falhar
         # (ex.: NICK_WHATSAPP_NUMBER não configurado) — libera antes de propagar.
@@ -190,4 +213,12 @@ async def start_checkout(
             except StockLevelNotFound:
                 continue
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Avisa a Nick que um carrinho entrou em checkout — o handoff em si (o
+    # link do WhatsApp) ainda depende do cliente abrir e mandar a mensagem;
+    # esta notificação é o que faz a Nick saber que precisa ficar de olho.
+    await NotifyNewCheckout(notification_channel).execute(
+        cart_id=cart_id, summary_text=_summary_to_text(summary)
+    )
+
     return CheckoutHandoffResponseSchema(handoff_url=url, provider=checkout.provider_name)
