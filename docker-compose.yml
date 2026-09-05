@@ -62,7 +62,13 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # NEXT_PUBLIC_... é lido pelo navegador do usuário (fora do Docker,
+      # por isso localhost:8000 via port mapping). API_GATEWAY_INTERNAL_URL
+      # é lido pelo servidor do Next.js dentro deste container, que precisa
+      # do nome do serviço na rede do Compose (ver comentário em
+      # apps/storefront/lib/api.ts).
       NEXT_PUBLIC_API_GATEWAY_URL: http://localhost:8000
+      API_GATEWAY_INTERNAL_URL: http://api-gateway:8000
     volumes:
       - ./apps/storefront:/repo/apps/storefront
       - ./packages:/repo/packages
