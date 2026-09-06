@@ -1,0 +1,17 @@
+# Provider de dashboard "as code" (ADR-0017) — todo arquivo .json em
+# ./json é carregado automaticamente no start do Grafana. `allowUiUpdates:
+# true` deixa quem estiver de olho no /grafana ajustar um painel na hora
+# (dev local), mas o arquivo neste repositório continua sendo a fonte de
+# verdade — reimportado a cada `updateIntervalSeconds`.
+apiVersion: 1
+
+providers:
+  - name: revold
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

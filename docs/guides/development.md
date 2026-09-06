@@ -45,5 +45,9 @@ Ver `claude/planejamento-leafs-e-adaptadores.md` (Project) para o plano original
 - **Configuração da loja** (`core-store-settings`, ADR-0019): CNPJ, contato, dados da loja e o limiar de estoque baixo (antes só `LOW_STOCK_THRESHOLD`, fixo até deploy) agora são editáveis pela Nick em `/configuracoes` no admin-dashboard (RBAC ADMIN only) — `GET/PUT /api/store-settings`.
 - **Testes E2E** (Playwright, ADR-0020): `make test-e2e` cobre o fluxo real de cliente ponta a ponta. Achado ao implementar: `docker-compose.yml` não carregava `.env` nos containers de `api-gateway`/`worker` (corrigido com `env_file`) e `SESSION_COOKIE_SECURE=true` por padrão quebrava login em `make dev` (sem HTTPS local) — `.env.example` agora usa `false` por padrão, `true` em produção (HTTPS real via Container Apps).
 
+## Dashboards Grafana (ADR-0017)
+
+`http://localhost:3002` já abre com o dashboard **"Revold — Visão Geral"** carregado — datasource Prometheus e dashboard são provisionados como código (`docker/grafana/provisioning/`), sem passo manual de configuração. Três seções: checkouts criados (taxa/min + total), alertas de estoque baixo (taxa/min + total), e API (requisições por status, taxa de erro 5xx, latência p50/p95/p99). Para adicionar um painel novo, editar `docker/grafana/provisioning/dashboards/json/revold-overview.json` (recarregado a cada 30s) em vez de só ajustar pela UI — a UI permite editar (`allowUiUpdates: true`), mas o arquivo do repositório é a fonte de verdade e sobrescreve no próximo reload.
+
 ## Convenção de commits
 `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:` — branch a partir de `develop`, PR com quality gates locais rodando antes de abrir.

@@ -1,0 +1,15 @@
+# Provisionamento automático do datasource Prometheus no Grafana (ADR-0017).
+# Sem isso, quem sobe `make dev` pela primeira vez via seguir manualmente
+# "Configuration > Data Sources > Add" antes de ver qualquer painel — com
+# provisioning, o datasource (e os dashboards em ../dashboards/json) já
+# existem no primeiro load do Grafana.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -165,6 +165,10 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - grafana_data:/var/lib/grafana
+      # Datasource Prometheus + dashboard "Revold — Visão Geral" (ADR-0017)
+      # provisionados como código — já aparecem no primeiro load, sem
+      # configuração manual.
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
 
