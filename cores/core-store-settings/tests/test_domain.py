@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from revold_testing.store_settings_factories import StoreSettingsFactory
 
 from core_store_settings.domain import StoreSettings
 
@@ -47,3 +48,20 @@ def test_rejeita_email_sem_arroba() -> None:
 def test_rejeita_limiar_negativo() -> None:
     with pytest.raises(ValueError):
         _settings(low_stock_threshold=-1)
+
+
+class TestFabricaDeDados:
+    def test_fabrica_gera_registro_totalmente_preenchido_e_valido(self) -> None:
+        # Os testes acima usam `_settings()` (todo campo textual vazio por
+        # padrão) — a fábrica é o inverso: gera os 6 campos preenchidos com
+        # dado realista de uma vez, confirmando que "totalmente
+        # preenchido" também passa por __post_init__ sem exceção alguma.
+        settings = StoreSettingsFactory()
+        assert len(settings.cnpj_digits) == 14
+        assert settings.store_name
+        assert "@" in settings.contact_email
+        assert settings.low_stock_threshold >= 0
+
+    def test_fabrica_gera_cnpjs_distintos_a_cada_chamada(self) -> None:
+        a, b = StoreSettingsFactory(), StoreSettingsFactory()
+        assert a.cnpj_digits != b.cnpj_digits
