@@ -123,6 +123,11 @@ export default function EstoquePage() {
           <a href="/produtos/novo" className="text-sm underline">
             Novo produto
           </a>
+          {user?.roles.includes("admin") && (
+            <a href="/configuracoes" className="text-sm underline">
+              Configurações
+            </a>
+          )}
           <button onClick={handleLogout} className="text-sm underline">
             Sair
           </button>

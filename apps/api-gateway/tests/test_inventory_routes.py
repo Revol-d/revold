@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_event_publisher, get_inventory_repository
+from api_gateway.dependencies import (
+    get_event_publisher,
+    get_inventory_repository,
+    get_low_stock_threshold,
+)
 from api_gateway.main import app
 from api_gateway.security import get_current_user
 from core_events.domain import DomainEvent
@@ -50,6 +54,12 @@ def override_dependencies(fake_event_publisher: _FakeEventPublisher):
     fake_repo = _FakeInventoryRepository()
     app.dependency_overrides[get_inventory_repository] = lambda: fake_repo
     app.dependency_overrides[get_event_publisher] = lambda: fake_event_publisher
+    # get_low_stock_threshold agora lê core-store-settings via Postgres
+    # (ADR-0019) — sobrescrito aqui com o mesmo valor padrão de antes (5)
+    # para não fazer este teste de unidade abrir uma sessão de banco de
+    # verdade (mesmo cuidado de test_metrics_endpoint.py: um novo event
+    # loop por teste do pytest-asyncio bate com o engine async singleton).
+    app.dependency_overrides[get_low_stock_threshold] = lambda: 5
     # Endpoints administrativos (receive/reserve/release) exigem STAFF/ADMIN
     # (ADR-0010) — os testes de contrato aqui autenticam como staff; os
     # testes de RBAC em si (401/403) ficam em test_inventory_rbac.py.

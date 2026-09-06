@@ -24,6 +24,8 @@ Este monorepo segue Domain-Driven Design, Hexagonal Architecture (Ports & Adapte
 | [0016](adr/0016-api-key-rate-limit-webhook-outbound.md) | API key + rate limiter + webhook de saída (API pública/parceiro) |
 | [0017](adr/0017-observabilidade-metricas-prometheus.md) | Observabilidade — métricas (Prometheus/Grafana) |
 | [0018](adr/0018-canal-de-notificacao-email-smtp.md) | Canal de notificação por e-mail (SMTP) |
+| [0019](adr/0019-core-store-settings-configuracao-da-loja.md) | core-store-settings — configuração da loja editável pela Nick |
+| [0020](adr/0020-testes-e2e-playwright.md) | Testes E2E com Playwright |
 
 Toda nova decisão arquitetural relevante (novo core, nova camada, mudança de infraestrutura, troca de provedor externo) deve ganhar um ADR novo antes da implementação, não depois.
 

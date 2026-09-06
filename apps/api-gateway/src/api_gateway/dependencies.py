@@ -31,6 +31,7 @@ from adapters_persistence.identity.redis_rate_limiter import RedisRateLimiter
 from adapters_persistence.identity.redis_session_repository import RedisSessionRepository
 from adapters_persistence.inventory.repository import PostgresInventoryRepository
 from adapters_persistence.redis_client import make_redis_client
+from adapters_persistence.store_settings.repository import PostgresStoreSettingsRepository
 from core_ai_assistant.ports import LLMProvider, ProductIndex
 from core_cart.ports import CartRepository
 from core_catalog.ports import MediaStorage, ProductRepository
@@ -40,6 +41,7 @@ from core_identity.ports import ApiKeyAuth, IdentityProvider, RateLimiter, Sessi
 from core_inventory.ports import InventoryRepository
 from core_notification.ports import NotificationChannel
 from core_observability.ports import MetricsPublisher
+from core_store_settings.ports import StoreSettingsRepository
 
 _engine = make_engine()
 _session_factory = make_session_factory(_engine)
@@ -111,8 +113,39 @@ def get_notification_channel() -> NotificationChannel:
     return _notification_channel
 
 
-def get_low_stock_threshold() -> int:
+async def get_store_settings_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> StoreSettingsRepository:
+    # Sempre Postgres (ADR-0019) — mesmo raciocínio de get_api_key_auth:
+    # não há "provedor de nuvem" a trocar por env var, é sempre dado nosso.
+    return PostgresStoreSettingsRepository(session)
+
+
+def get_low_stock_threshold_env_default() -> int:
+    """Valor de LOW_STOCK_THRESHOLD (env var) — usado como piso enquanto a
+    Nick não salvou nenhuma configuração em /configuracoes (ADR-0019) e
+    passado como `default_low_stock_threshold` para os casos de uso de
+    core_store_settings. Não é, sozinho, o limiar efetivo — ver
+    `get_low_stock_threshold` abaixo."""
     return int(os.environ.get("LOW_STOCK_THRESHOLD", "5"))
+
+
+async def get_low_stock_threshold(
+    repository: StoreSettingsRepository = Depends(get_store_settings_repository),
+) -> int:
+    # Antes do ADR-0019, este valor só vinha de LOW_STOCK_THRESHOLD (env
+    # var), fixo até o próximo deploy. Agora é lido da configuração da loja
+    # (editável pela Nick em /configuracoes, sem precisar de deploy) — a
+    # env var continua valendo como default até a Nick configurar algo pela
+    # primeira vez (GetStoreSettings cai nela quando não há registro salvo),
+    # então quem nunca abriu a tela de configurações não percebe mudança
+    # nenhuma de comportamento.
+    from core_store_settings.use_cases import GetStoreSettings
+
+    settings = await GetStoreSettings(repository).execute(
+        default_low_stock_threshold=get_low_stock_threshold_env_default()
+    )
+    return settings.low_stock_threshold
 
 
 def get_llm_provider() -> LLMProvider:

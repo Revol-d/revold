@@ -68,6 +68,24 @@ export interface StockLevel {
   quantity_available: number;
 }
 
+export interface StoreSettings {
+  cnpj: string;
+  store_name: string;
+  contact_email: string;
+  contact_phone: string;
+  store_address: string;
+  low_stock_threshold: number;
+}
+
+export interface UpdateStoreSettingsInput {
+  cnpj?: string;
+  store_name?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  store_address?: string;
+  low_stock_threshold?: number;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -225,5 +243,16 @@ export function receiveStock(sku: string, quantity: number): Promise<StockLevel>
   return apiFetch<StockLevel>(`/api/inventory/${encodeURIComponent(sku)}/receive`, {
     method: "POST",
     body: JSON.stringify({ quantity }),
+  });
+}
+
+export function getStoreSettings(): Promise<StoreSettings> {
+  return apiFetch<StoreSettings>("/api/store-settings");
+}
+
+export function updateStoreSettings(input: UpdateStoreSettingsInput): Promise<StoreSettings> {
+  return apiFetch<StoreSettings>("/api/store-settings", {
+    method: "PUT",
+    body: JSON.stringify(input),
   });
 }

@@ -1,0 +1,86 @@
+openapi: 3.0.3
+info:
+  title: Core Store Settings API
+  version: "1.0.0"
+  description: >
+    Contrato do core-store-settings (Contract-First, ver ADR-0002,
+    ADR-0019). Um único registro de configuração administrativa da loja —
+    CNPJ, contato, dados da loja e o limiar de estoque baixo — editável
+    pela Nick no admin-dashboard, sem precisar de deploy.
+servers:
+  - url: /api/store-settings
+paths:
+  /:
+    get:
+      operationId: getStoreSettings
+      summary: >
+        Lê a configuração atual da loja — devolve um registro vazio (com o
+        limiar padrão de LOW_STOCK_THRESHOLD) se a Nick ainda não salvou
+        nada.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoreSettings" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel ADMIN exigido
+    put:
+      operationId: updateStoreSettings
+      summary: >
+        Atualiza os campos informados (todos opcionais — só o que for
+        passado é alterado, o resto é preservado).
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStoreSettingsRequest" }
+      responses:
+        "200":
+          description: Configuração atualizada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoreSettings" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel ADMIN exigido
+        "422":
+          description: CNPJ ou e-mail com formato inválido, ou limiar negativo
+
+components:
+  schemas:
+    StoreSettings:
+      type: object
+      required:
+        [cnpj, store_name, contact_email, contact_phone, store_address, low_stock_threshold]
+      properties:
+        cnpj:
+          type: string
+          description: "Com ou sem máscara — vazio se ainda não preenchido."
+        store_name: { type: string }
+        contact_email: { type: string }
+        contact_phone: { type: string }
+        store_address: { type: string }
+        low_stock_threshold:
+          type: integer
+          description: >
+            Quantidade disponível abaixo da qual um aviso de estoque baixo
+            é disparado (ver ADR-0013, NotifyLowStock). Antes do ADR-0019
+            só existia como env var LOW_STOCK_THRESHOLD, fixa até o
+            próximo deploy.
+    UpdateStoreSettingsRequest:
+      type: object
+      properties:
+        cnpj: { type: string }
+        store_name: { type: string }
+        contact_email: { type: string }
+        contact_phone: { type: string }
+        store_address: { type: string }
+        low_stock_threshold: { type: integer }

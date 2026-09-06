@@ -13,6 +13,12 @@ node_modules/
 .next/
 out/
 .turbo/
+*.tsbuildinfo
+
+# Playwright (ADR-0020)
+test-results/
+playwright-report/
+blob-report/
 
 # Env
 .env

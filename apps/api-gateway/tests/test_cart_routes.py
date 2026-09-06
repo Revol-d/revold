@@ -14,6 +14,7 @@ from api_gateway.dependencies import (
     get_checkout_handoff,
     get_event_publisher,
     get_inventory_repository,
+    get_low_stock_threshold,
 )
 from api_gateway.main import app
 from core_cart.domain import Cart
@@ -88,6 +89,12 @@ def override_dependencies(
     app.dependency_overrides[get_inventory_repository] = lambda: fake_inventory_repository
     app.dependency_overrides[get_checkout_handoff] = lambda: _FakeCheckoutHandoff()
     app.dependency_overrides[get_event_publisher] = lambda: fake_event_publisher
+    # get_low_stock_threshold agora lê core-store-settings via Postgres
+    # (ADR-0019) — sobrescrito aqui com o mesmo valor padrão de antes (5)
+    # para não fazer este teste de unidade abrir uma sessão de banco de
+    # verdade (mesmo cuidado de test_metrics_endpoint.py: um novo event
+    # loop por teste do pytest-asyncio bate com o engine async singleton).
+    app.dependency_overrides[get_low_stock_threshold] = lambda: 5
     yield
     app.dependency_overrides.clear()
 

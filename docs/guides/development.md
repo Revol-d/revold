@@ -25,6 +25,7 @@ Quatro camadas, cada teste marcado com `@pytest.mark.<nome>` (registrados em `py
 - **`@pytest.mark.integration`**: contra Postgres/pgvector real, não fake — pula sozinho sem `DATABASE_URL`/`TEST_DATABASE_URL` alcançável. Roda também no CI (service do GitHub Actions), não só localmente.
 - **Sandbox de serviço externo** (`respx`, ou um emulador/servidor real self-hosted): todo adapter real que ainda não tem credencial de produção é validado contra algo que fala o protocolo de verdade, sem credencial nenhuma — `respx` simula a API HTTP do Azure OpenAI; o **Azurite** (emulador oficial da Microsoft) valida o `AzureBlobStorage` (ADR-0015); um worker Celery + Redis reais (subprocesso) validam o barramento de eventos de ponta a ponta (ADR-0013); o **aiosmtpd** (servidor SMTP real, em memória, puro Python) valida o `SmtpNotificationChannel` (ADR-0018).
 - **`@pytest.mark.eval`** (`cores/core-ai-assistant/evals/`): dataset comportamental do assistente de IA. `test_behavior.py` roda sempre (determinístico, sem credencial). `test_llm_judge.py` (LLM-as-judge, nota de qualidade) só roda de verdade com `LLM_PROVIDER=azure-openai` real — pula sozinho caso contrário.
+- **E2E** (`make test-e2e`, ADR-0020): Playwright, contra storefront + api-gateway + Postgres/Redis reais (a stack inteira de `make dev` já de pé) — `apps/storefront/e2e/global-setup.ts` semeia categoria/produto/estoque via chamadas HTTP reais antes da suíte, `checkout.spec.ts` cobre navegar → adicionar ao carrinho → fechar pedido pelo WhatsApp, e busca full-text de ponta a ponta.
 
 ## Leafs/adapters adicionados depois do MVP inicial (ADR-0013 a ADR-0018)
 
@@ -38,6 +39,11 @@ Enquanto credenciais de nuvem reais (Azure AD, Google, WhatsApp Business API, Az
 - **Canal de e-mail** (`SmtpNotificationChannel`, ADR-0018): `NOTIFICATION_PROVIDER=smtp`.
 
 Ver `claude/planejamento-leafs-e-adaptadores.md` (Project) para o plano original e `docs/architecture/adr/0013-*.md` a `0018-*.md` para os registros completos.
+
+## Configuração da loja e testes E2E (ADR-0019, ADR-0020)
+
+- **Configuração da loja** (`core-store-settings`, ADR-0019): CNPJ, contato, dados da loja e o limiar de estoque baixo (antes só `LOW_STOCK_THRESHOLD`, fixo até deploy) agora são editáveis pela Nick em `/configuracoes` no admin-dashboard (RBAC ADMIN only) — `GET/PUT /api/store-settings`.
+- **Testes E2E** (Playwright, ADR-0020): `make test-e2e` cobre o fluxo real de cliente ponta a ponta. Achado ao implementar: `docker-compose.yml` não carregava `.env` nos containers de `api-gateway`/`worker` (corrigido com `env_file`) e `SESSION_COOKIE_SECURE=true` por padrão quebrava login em `make dev` (sem HTTPS local) — `.env.example` agora usa `false` por padrão, `true` em produção (HTTPS real via Container Apps).
 
 ## Convenção de commits
 `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:` — branch a partir de `develop`, PR com quality gates locais rodando antes de abrir.

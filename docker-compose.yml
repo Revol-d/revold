@@ -35,6 +35,20 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    # env_file carrega tudo que o .env (copiado de .env.example, ver
+    # "Primeiros passos" do guia de desenvolvimento) configura e que NÃO
+    # está hardcoded em `environment:` abaixo — NICK_WHATSAPP_NUMBER,
+    # SESSION_COOKIE_SECURE, SMTP_*, AZURE_*, GOOGLE_*, WEBHOOK_URLS etc.
+    # Sem isso, nenhuma dessas variáveis chegava ao container (achado ao
+    # implementar o primeiro teste E2E via browser real, ADR-0020: sem
+    # NICK_WHATSAPP_NUMBER, todo checkout falhava; com o cookie de sessão
+    # Secure=true — o padrão — e sem HTTPS, o navegador nem guardava o
+    # cookie, quebrando login pelo storefront/admin-dashboard reais).
+    # `environment:` abaixo continua tendo prioridade sobre o `.env` para
+    # as mesmas chaves (Compose aplica env_file primeiro, depois
+    # environment).
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://revold:revold_dev_only@postgres:5432/revold
       DATABASE_URL_SYNC: postgresql+psycopg2://revold:revold_dev_only@postgres:5432/revold
@@ -78,6 +92,10 @@ services:
       target: dev
     restart: unless-stopped
     command: ["poetry", "run", "celery", "-A", "event_worker.celery_app", "worker", "--loglevel=info"]
+    # Mesmo racional do api-gateway acima: SMTP_*/NICK_NOTIFICATION_EMAIL
+    # (canal de e-mail, ADR-0018) só chegam aqui via .env.
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://revold:revold_dev_only@postgres:5432/revold
       REDIS_URL: redis://redis:6379/0

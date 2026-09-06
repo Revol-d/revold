@@ -6,7 +6,11 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_event_publisher, get_inventory_repository
+from api_gateway.dependencies import (
+    get_event_publisher,
+    get_inventory_repository,
+    get_low_stock_threshold,
+)
 from api_gateway.main import app
 from api_gateway.security import get_current_user
 from core_identity.domain import AuthenticatedUser, Role
@@ -43,6 +47,11 @@ _STAFF_USER = AuthenticatedUser(
 def override_dependencies():
     app.dependency_overrides[get_inventory_repository] = lambda: _FakeInventoryRepository()
     app.dependency_overrides[get_event_publisher] = lambda: _FakeEventPublisher()
+    # get_low_stock_threshold agora lê core-store-settings via Postgres
+    # (ADR-0019) e é declarado antes da checagem de RBAC em reserve_stock —
+    # sobrescrito aqui para nenhum teste de 401/403 chegar a abrir uma
+    # sessão de banco de verdade antes da checagem de autenticação/papel.
+    app.dependency_overrides[get_low_stock_threshold] = lambda: 5
     yield
     app.dependency_overrides.clear()
 

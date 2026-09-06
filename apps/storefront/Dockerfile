@@ -9,6 +9,10 @@ RUN pnpm install --frozen-lockfile
 WORKDIR /repo/apps/storefront
 
 FROM base AS dev
+# Chromium + libs de sistema pro Playwright (ADR-0020, testes E2E) — só
+# paga esse custo o stage de dev, usado por `make test-e2e`/`make lint`/
+# `make test`; o stage de runtime (produção) não carrega nada disso.
+RUN pnpm exec playwright install --with-deps chromium
 EXPOSE 3000
 CMD ["pnpm", "dev"]
 
