@@ -41,6 +41,30 @@ paths:
           description: Sem sessão válida
         "403":
           description: Papel STAFF/ADMIN exigido
+  /categories/{slug}:
+    delete:
+      operationId: deleteCategory
+      summary: >
+        Remove uma categoria — uso administrativo, papel STAFF/ADMIN. Nunca
+        cascade-remove produtos: se a categoria ainda tiver algum, retorna 409.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Removida
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Categoria não encontrada
+        "409":
+          description: Categoria ainda tem produtos — mova ou remova-os antes
   /products:
     get:
       operationId: listProducts
@@ -68,6 +92,30 @@ paths:
             type: string
             enum: [relevance, price_asc, price_desc]
             default: relevance
+        - name: size
+          in: query
+          required: false
+          description: >
+            Filtra produtos que tenham ao menos uma variante com este
+            tamanho (repita o parâmetro para múltiplos valores — combinado
+            em OR entre si, e em AND com `color` quando os dois são
+            enviados, exigindo que a MESMA variante case ambos).
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - name: color
+          in: query
+          required: false
+          description: >
+            Filtra produtos que tenham ao menos uma variante com esta cor
+            (mesma semântica de combinação de `size` acima).
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
         - name: page
           in: query
           required: false
@@ -160,6 +208,25 @@ paths:
           description: Papel STAFF/ADMIN exigido
         "404":
           description: Produto (ou nova categoria) não encontrado
+    delete:
+      operationId: deleteProduct
+      summary: Remove um produto e suas variantes — uso administrativo, papel STAFF/ADMIN
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Removido
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Produto não encontrado
   /products/{sku}/variants:
     post:
       operationId: addProductVariant
@@ -191,6 +258,67 @@ paths:
           description: Produto não encontrado
         "409":
           description: Já existe uma variante com esse SKU neste produto
+  /products/{sku}/variants/{variant_sku}:
+    patch:
+      operationId: updateProductVariant
+      summary: >
+        Edita tamanho/cor/disponibilidade de uma variante já existente — uso
+        administrativo, papel STAFF/ADMIN. O SKU da variante nunca muda por
+        aqui (é a mesma chave usada por core-inventory).
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+        - name: variant_sku
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProductVariantRequest" }
+      responses:
+        "200":
+          description: Variante atualizada — retorna o produto atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Produto ou variante não encontrados
+    delete:
+      operationId: removeProductVariant
+      summary: Remove uma variante de um produto — uso administrativo, papel STAFF/ADMIN
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+        - name: variant_sku
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Variante removida — retorna o produto atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Produto ou variante não encontrados
 components:
   securitySchemes:
     sessionCookie:
@@ -309,3 +437,12 @@ components:
           items: { type: string, format: uri }
         original_price: { $ref: "#/components/schemas/Money" }
         clear_original_price: { type: boolean, default: false }
+    UpdateProductVariantRequest:
+      type: object
+      description: >
+        Todo campo é opcional: só o que for enviado é alterado. O SKU da
+        variante não é editável por este schema.
+      properties:
+        size: { type: string }
+        color: { type: string }
+        in_stock: { type: boolean }

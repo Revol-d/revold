@@ -64,6 +64,8 @@ class PostgresProductRepository:
         page_size: int,
         search_query: str | None = None,
         sort: str = "relevance",
+        sizes: list[str] | None = None,
+        colors: list[str] | None = None,
     ) -> tuple[list[Product], int]:
         query = select(ProductModel).options(
             selectinload(ProductModel.category), selectinload(ProductModel.variants)
@@ -75,6 +77,18 @@ class PostgresProductRepository:
         if search_query:
             query = query.where(ProductModel.name.ilike(f"%{search_query}%"))
             count_query = count_query.where(ProductModel.name.ilike(f"%{search_query}%"))
+        if sizes or colors:
+            # EXISTS em vez de JOIN: uma variante que casa tamanho E cor não
+            # deve duplicar a linha do produto no resultado. sizes/colors
+            # juntos exigem a MESMA variante casar os dois.
+            variant_conditions = [ProductVariantModel.product_sku == ProductModel.sku]
+            if sizes:
+                variant_conditions.append(ProductVariantModel.size.in_(sizes))
+            if colors:
+                variant_conditions.append(ProductVariantModel.color.in_(colors))
+            variant_match = select(ProductVariantModel.sku).where(*variant_conditions).exists()
+            query = query.where(variant_match)
+            count_query = count_query.where(variant_match)
 
         if sort == "price_asc":
             query = query.order_by(ProductModel.price_amount.asc())
@@ -158,3 +172,21 @@ class PostgresProductRepository:
             select(ProductVariantModel.product_sku).where(ProductVariantModel.sku == variant_sku)
         )
         return result.scalar_one_or_none()
+
+    async def delete_product(self, sku: str) -> None:
+        model = await self._session.get(ProductModel, sku)
+        if model is None:
+            return
+        # Carrega as variantes antes de deletar para o cascade
+        # "delete-orphan" do relationship funcionar (SQLAlchemy cascateia em
+        # Python, não via ON DELETE do banco) — ver ProductModel.variants.
+        await self._session.refresh(model, attribute_names=["variants"])
+        await self._session.delete(model)
+        await self._session.commit()
+
+    async def delete_category(self, slug: str) -> None:
+        model = await self._session.get(CategoryModel, slug)
+        if model is None:
+            return
+        await self._session.delete(model)
+        await self._session.commit()

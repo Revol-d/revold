@@ -1,11 +1,12 @@
 """Router HTTP do core-catalog. Fino: só traduz HTTP <-> caso de uso."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from api_gateway.dependencies import get_product_repository
 from api_gateway.security import require_any_role
 from core_catalog.domain import (
+    CategoryHasProducts,
     CategoryNotFound,
     DuplicateSku,
     DuplicateVariantSku,
@@ -13,6 +14,7 @@ from core_catalog.domain import (
     Product,
     ProductNotFound,
     ProductVariant,
+    VariantNotFound,
 )
 from core_catalog.ports import ProductRepository
 from core_catalog.schemas import (
@@ -25,15 +27,20 @@ from core_catalog.schemas import (
     ProductSchema,
     ProductVariantSchema,
     UpdateProductRequestSchema,
+    UpdateProductVariantRequestSchema,
 )
 from core_catalog.use_cases import (
     AddProductVariant,
     CreateCategory,
     CreateProduct,
+    DeleteCategory,
+    DeleteProduct,
     GetProduct,
     ListCategories,
     ListProducts,
+    RemoveProductVariant,
     UpdateProduct,
+    UpdateProductVariant,
 )
 from core_identity.domain import AuthenticatedUser
 from core_identity.domain import Role as UserRole
@@ -54,13 +61,21 @@ async def list_products(
     category: str | None = Query(default=None),
     q: str | None = Query(default=None),
     sort: str = Query(default="relevance"),
+    size: list[str] | None = Query(default=None),
+    color: list[str] | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=100),
     repository: ProductRepository = Depends(get_product_repository),
 ) -> ProductPageSchema:
     try:
         result = await ListProducts(repository).execute(
-            category_slug=category, search_query=q, sort=sort, page=page, page_size=page_size
+            category_slug=category,
+            search_query=q,
+            sort=sort,
+            sizes=size,
+            colors=color,
+            page=page,
+            page_size=page_size,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -172,6 +187,69 @@ async def add_product_variant(
     except DuplicateVariantSku as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _product_to_schema(product)
+
+
+@router.patch("/products/{sku}/variants/{variant_sku}", response_model=ProductSchema)
+async def update_product_variant(
+    sku: str,
+    variant_sku: str,
+    body: UpdateProductVariantRequestSchema,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> ProductSchema:
+    try:
+        product = await UpdateProductVariant(repository).execute(
+            sku, variant_sku, size=body.size, color=body.color, in_stock=body.in_stock
+        )
+    except ProductNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VariantNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _product_to_schema(product)
+
+
+@router.delete("/products/{sku}/variants/{variant_sku}", response_model=ProductSchema)
+async def remove_product_variant(
+    sku: str,
+    variant_sku: str,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> ProductSchema:
+    try:
+        product = await RemoveProductVariant(repository).execute(sku, variant_sku)
+    except ProductNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except VariantNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _product_to_schema(product)
+
+
+@router.delete("/products/{sku}", status_code=204)
+async def delete_product(
+    sku: str,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> Response:
+    try:
+        await DeleteProduct(repository).execute(sku)
+    except ProductNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(status_code=204)
+
+
+@router.delete("/categories/{slug}", status_code=204)
+async def delete_category(
+    slug: str,
+    repository: ProductRepository = Depends(get_product_repository),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> Response:
+    try:
+        await DeleteCategory(repository).execute(slug)
+    except CategoryNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CategoryHasProducts as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return Response(status_code=204)
 
 
 def _product_to_schema(product: Product) -> ProductSchema:

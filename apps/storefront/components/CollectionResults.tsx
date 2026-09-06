@@ -14,61 +14,86 @@ import type { Product } from "@/lib/api";
 import { ProductGrid } from "@/components/ProductGrid";
 
 export interface CollectionResultsProps {
+  /** Já filtrados pelo servidor (categoria + busca + size/color + página). */
   products: Product[];
+  /** Mesma categoria/busca, sem o filtro de size/color — só usados para
+   * descobrir quais opções mostrar no FilterPanel (ver comentário na page). */
+  facetProducts: Product[];
   sort: SortValue;
+  sizes: string[];
+  colors: string[];
 }
 
-/** Filtro por tamanho/cor é aplicado só sobre os produtos já carregados
- * nesta página — o backend ainda não expõe facetas de variante em
- * /api/catalog/products (só category, q e sort). É uma limitação conhecida:
- * "aplicar filtro" aqui não busca mais produtos no servidor, só restringe o
- * que já veio. Ordenação e busca, por outro lado, já são resolvidas no
- * servidor via query param (compartilháveis por link). */
-export function CollectionResults({ products, sort }: CollectionResultsProps) {
+/** Tamanho/cor agora são resolvidos no servidor via query param (?size=P,M),
+ * do mesmo jeito que sort e busca já eram — link compartilhável, botão
+ * voltar do navegador funciona, e o filtro vale pro catálogo inteiro, não
+ * só pelos itens já carregados na página atual (limitação anterior). */
+export function CollectionResults({
+  products,
+  facetProducts,
+  sort,
+  sizes,
+  colors,
+}: CollectionResultsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [density, setDensity] = useState<GridDensity>("comfortable");
   const [isFilterOpen, setFilterOpen] = useState(false);
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
 
   const filterGroups: FilterGroup[] = useMemo(() => {
-    const sizes = new Set<string>();
-    const colors = new Set<string>();
-    for (const product of products) {
+    const availableSizes = new Set<string>();
+    const availableColors = new Set<string>();
+    for (const product of facetProducts) {
       for (const variant of product.variants) {
-        sizes.add(variant.size);
-        colors.add(variant.color);
+        availableSizes.add(variant.size);
+        availableColors.add(variant.color);
       }
     }
     return [
-      { id: "size", label: "Tamanho", options: [...sizes].sort().map((s) => ({ value: s, label: s })) },
-      { id: "color", label: "Cor", options: [...colors].sort().map((c) => ({ value: c, label: c })) },
+      {
+        id: "size",
+        label: "Tamanho",
+        options: [...availableSizes].sort().map((s) => ({ value: s, label: s })),
+      },
+      {
+        id: "color",
+        label: "Cor",
+        options: [...availableColors].sort().map((c) => ({ value: c, label: c })),
+      },
     ].filter((group) => group.options.length > 0);
-  }, [products]);
+  }, [facetProducts]);
 
-  const filteredProducts = useMemo(() => {
-    const sizeFilter = selected.size ?? [];
-    const colorFilter = selected.color ?? [];
-    if (sizeFilter.length === 0 && colorFilter.length === 0) return products;
-    return products.filter((product) =>
-      product.variants.some(
-        (variant) =>
-          (sizeFilter.length === 0 || sizeFilter.includes(variant.size)) &&
-          (colorFilter.length === 0 || colorFilter.includes(variant.color)),
-      ),
-    );
-  }, [products, selected]);
+  const selected: Record<string, string[]> = { size: sizes, color: colors };
 
-  function updateSort(value: SortValue) {
+  function updateParam(name: "sort" | "size" | "color", value: string) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("sort", value);
+    if (value) params.set(name, value);
+    else params.delete(name);
     params.delete("page");
     router.push(`${pathname}?${params.toString()}`);
   }
 
-  const activeFilterCount = Object.values(selected).reduce((sum, values) => sum + values.length, 0);
+  function updateSort(value: SortValue) {
+    updateParam("sort", value);
+  }
+
+  function updateFilter(groupId: string, values: string[]) {
+    if (groupId === "size" || groupId === "color") {
+      updateParam(groupId, values.join(","));
+    }
+  }
+
+  function clearFilters() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("size");
+    params.delete("color");
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  const activeFilterCount = sizes.length + colors.length;
 
   return (
     <div>
@@ -89,14 +114,14 @@ export function CollectionResults({ products, sort }: CollectionResultsProps) {
           <FilterPanel
             groups={filterGroups}
             selected={selected}
-            onChange={(groupId, values) => setSelected((current) => ({ ...current, [groupId]: values }))}
-            onClear={() => setSelected({})}
+            onChange={updateFilter}
+            onClear={clearFilters}
           />
         </div>
       )}
 
-      <ProductGrid products={filteredProducts} compact={density === "compact"} />
-      {filteredProducts.length === 0 && <p>Nenhum produto encontrado com esses filtros.</p>}
+      <ProductGrid products={products} compact={density === "compact"} />
+      {products.length === 0 && <p>Nenhum produto encontrado com esses filtros.</p>}
     </div>
   );
 }

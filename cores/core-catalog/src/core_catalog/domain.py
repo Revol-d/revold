@@ -79,3 +79,25 @@ class DuplicateVariantSku(Exception):
     def __init__(self, sku: str) -> None:
         super().__init__(f"Já existe uma variante com SKU '{sku}' neste produto")
         self.sku = sku
+
+
+class VariantNotFound(Exception):
+    """Levantada ao tentar editar/remover uma variante que não existe no
+    produto informado."""
+
+    def __init__(self, sku: str) -> None:
+        super().__init__(f"Variante '{sku}' não encontrada neste produto")
+        self.sku = sku
+
+
+class CategoryHasProducts(Exception):
+    """Levantada ao tentar remover uma categoria que ainda tem produtos —
+    nunca cascade-remove produtos junto (perda de dado silenciosa); quem
+    remove precisa primeiro mover ou remover os produtos da categoria."""
+
+    def __init__(self, slug: str, product_count: int) -> None:
+        super().__init__(
+            f"Categoria '{slug}' ainda tem {product_count} produto(s) — mova ou remova-os antes"
+        )
+        self.slug = slug
+        self.product_count = product_count

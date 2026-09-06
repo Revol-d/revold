@@ -8,9 +8,12 @@ import {
   getCurrentUser,
   getProduct,
   listCategories,
+  removeProductVariant,
   updateProduct,
+  updateProductVariant,
   type Category,
   type Product,
+  type ProductVariant,
 } from "@/lib/api";
 
 export default function EditarProdutoPage() {
@@ -197,16 +200,14 @@ export default function EditarProdutoPage() {
       <hr className="my-8 border-slate-200" />
 
       <h2 className="mb-3 text-lg font-semibold">Variantes</h2>
-      <ul className="mb-4 flex flex-col gap-1 text-sm">
+      <ul className="mb-4 flex flex-col gap-2 text-sm">
         {product.variants.map((variant) => (
-          <li key={variant.sku} className="flex justify-between rounded border border-slate-100 px-3 py-1.5">
-            <span>
-              {variant.sku} — {variant.size} / {variant.color}
-            </span>
-            <span className={variant.in_stock ? "text-green-700" : "text-slate-400"}>
-              {variant.in_stock ? "em estoque" : "sem estoque"}
-            </span>
-          </li>
+          <VariantRow
+            key={variant.sku}
+            sku={sku}
+            variant={variant}
+            onUpdated={(updated) => setProduct(updated)}
+          />
         ))}
         {product.variants.length === 0 && (
           <li className="text-slate-500">Nenhuma variante cadastrada ainda.</li>
@@ -265,5 +266,130 @@ export default function EditarProdutoPage() {
         {variantError && <p className="text-red-600">{variantError}</p>}
       </form>
     </main>
+  );
+}
+
+/** Uma linha de variante existente — editável in-line (tamanho, cor,
+ * disponibilidade) e removível. Fica num componente à parte porque cada
+ * linha tem seu próprio estado de edição/salvamento, independente das
+ * outras. */
+function VariantRow({
+  sku,
+  variant,
+  onUpdated,
+}: {
+  sku: string;
+  variant: ProductVariant;
+  onUpdated: (product: Product) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [size, setSize] = useState(variant.size);
+  const [color, setColor] = useState(variant.color);
+  const [inStock, setInStock] = useState(variant.in_stock);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setRowError(null);
+    setIsSaving(true);
+    try {
+      const updated = await updateProductVariant(sku, variant.sku, { size, color, in_stock: inStock });
+      onUpdated(updated);
+      setIsEditing(false);
+    } catch {
+      setRowError("Não foi possível salvar esta variante.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!window.confirm(`Remover a variante ${variant.sku}? Isso não pode ser desfeito.`)) return;
+    setRowError(null);
+    setIsRemoving(true);
+    try {
+      const updated = await removeProductVariant(sku, variant.sku);
+      onUpdated(updated);
+    } catch {
+      setRowError("Não foi possível remover esta variante.");
+      setIsRemoving(false);
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <li className="flex flex-col gap-2 rounded border border-slate-200 px-3 py-2">
+        <div className="flex gap-2">
+          <input
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+            placeholder="Tamanho"
+            className="w-20 rounded border border-slate-300 px-2 py-1"
+          />
+          <input
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            placeholder="Cor"
+            className="flex-1 rounded border border-slate-300 px-2 py-1"
+          />
+          <label className="flex items-center gap-1 whitespace-nowrap">
+            <input type="checkbox" checked={inStock} onChange={(e) => setInStock(e.target.checked)} />
+            Em estoque
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="rounded bg-slate-900 px-3 py-1 text-white disabled:opacity-50"
+          >
+            {isSaving ? "Salvando..." : "Salvar"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditing(false);
+              setSize(variant.size);
+              setColor(variant.color);
+              setInStock(variant.in_stock);
+              setRowError(null);
+            }}
+            className="rounded border border-slate-300 px-3 py-1"
+          >
+            Cancelar
+          </button>
+        </div>
+        {rowError && <p className="text-red-600">{rowError}</p>}
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex flex-col gap-1 rounded border border-slate-100 px-3 py-1.5">
+      <div className="flex items-center justify-between">
+        <span>
+          {variant.sku} — {variant.size} / {variant.color}
+        </span>
+        <span className={variant.in_stock ? "text-green-700" : "text-slate-400"}>
+          {variant.in_stock ? "em estoque" : "sem estoque"}
+        </span>
+      </div>
+      <div className="flex gap-3 text-xs">
+        <button type="button" onClick={() => setIsEditing(true)} className="underline">
+          Editar
+        </button>
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={isRemoving}
+          className="text-red-600 underline disabled:opacity-50"
+        >
+          {isRemoving ? "Removendo..." : "Remover"}
+        </button>
+      </div>
+      {rowError && <p className="text-red-600">{rowError}</p>}
+    </li>
   );
 }

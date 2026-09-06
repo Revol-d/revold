@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ApiError,
+  deleteProduct,
   getCurrentUser,
   getStockLevel,
   listProducts,
@@ -86,6 +87,19 @@ export default function EstoquePage() {
     }
   }
 
+  async function handleDelete(sku: string, name: string) {
+    if (!window.confirm(`Remover o produto "${name}" (${sku})? Isso não pode ser desfeito.`)) return;
+    setPending(sku);
+    try {
+      await deleteProduct(sku);
+      setRows((prev) => prev.filter((row) => row.product.sku !== sku));
+    } catch {
+      window.alert("Não foi possível remover este produto.");
+    } finally {
+      setPending(null);
+    }
+  }
+
   async function handleLogout() {
     await logout();
     router.replace("/login");
@@ -148,6 +162,13 @@ export default function EstoquePage() {
                   >
                     Editar
                   </a>
+                  <button
+                    onClick={() => handleDelete(product.sku, product.name)}
+                    disabled={pending === product.sku}
+                    className="text-xs text-red-600 underline disabled:opacity-50"
+                  >
+                    Remover
+                  </button>
                 </div>
               </td>
             </tr>

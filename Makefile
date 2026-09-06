@@ -1,4 +1,4 @@
-.PHONY: dev setup clean test test-unit test-integration test-contract test-e2e coverage lint format build migrate
+.PHONY: dev setup clean test test-unit test-integration test-contract test-eval test-e2e coverage lint format build migrate
 
 # Convenção do projeto: todo comando roda dentro de container Docker, nunca
 # direto na máquina de quem desenvolve — evita "funciona na minha máquina"
@@ -25,6 +25,9 @@ test-integration:
 
 test-contract:
 	docker compose run --rm api-gateway poetry run pytest -m contract
+
+test-eval:
+	docker compose run --rm api-gateway poetry run pytest -m eval -v
 
 test-e2e:
 	docker compose run --rm storefront pnpm exec playwright test

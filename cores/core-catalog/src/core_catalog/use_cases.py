@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from core_catalog.domain import (
     Category,
+    CategoryHasProducts,
     CategoryNotFound,
     DuplicateSku,
     DuplicateVariantSku,
@@ -12,6 +13,7 @@ from core_catalog.domain import (
     Product,
     ProductNotFound,
     ProductVariant,
+    VariantNotFound,
 )
 from core_catalog.ports import ProductRepository
 
@@ -44,6 +46,8 @@ class ListProducts:
         category_slug: str | None = None,
         search_query: str | None = None,
         sort: str = "relevance",
+        sizes: list[str] | None = None,
+        colors: list[str] | None = None,
         page: int = 1,
         page_size: int = 24,
     ) -> ProductPageResult:
@@ -57,6 +61,8 @@ class ListProducts:
             category_slug=category_slug,
             search_query=search_query,
             sort=sort,
+            sizes=sizes or None,
+            colors=colors or None,
             page=page,
             page_size=page_size,
         )
@@ -190,9 +196,9 @@ class UpdateProduct:
 
 class AddProductVariant:
     """Adiciona uma variante nova a um produto já existente — uso
-    administrativo (RBAC STAFF/ADMIN aplicado no api-gateway). Não permite
-    editar/remover uma variante existente (fica para quando precisar de
-    verdade); só adicionar."""
+    administrativo (RBAC STAFF/ADMIN aplicado no api-gateway). Para
+    editar/remover uma variante já existente, ver UpdateProductVariant e
+    RemoveProductVariant."""
 
     def __init__(self, repository: ProductRepository) -> None:
         self._repository = repository
@@ -220,3 +226,127 @@ class AddProductVariant:
         )
         await self._repository.save_product(updated)
         return updated
+
+
+class UpdateProductVariant:
+    """Edita tamanho/cor/disponibilidade de uma variante já existente — uso
+    administrativo (RBAC STAFF/ADMIN aplicado no api-gateway).
+
+    O SKU da variante nunca muda aqui de propósito: é a mesma chave usada
+    por core-inventory (StockLevel) para rastrear estoque, e deixar
+    renomear por esta rota órfã-ria o estoque já registrado. Quem precisa
+    trocar o SKU remove a variante antiga e adiciona uma nova.
+    """
+
+    def __init__(self, repository: ProductRepository) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        sku: str,
+        variant_sku: str,
+        *,
+        size: str | None = None,
+        color: str | None = None,
+        in_stock: bool | None = None,
+    ) -> Product:
+        product = await self._repository.get_product(sku)
+        if product is None:
+            raise ProductNotFound(sku)
+
+        existing = next((v for v in product.variants if v.sku == variant_sku), None)
+        if existing is None:
+            raise VariantNotFound(variant_sku)
+
+        updated_variant = ProductVariant(
+            sku=existing.sku,
+            size=size if size is not None else existing.size,
+            color=color if color is not None else existing.color,
+            in_stock=in_stock if in_stock is not None else existing.in_stock,
+        )
+        updated = Product(
+            sku=product.sku,
+            name=product.name,
+            category=product.category,
+            price=product.price,
+            variants=[updated_variant if v.sku == variant_sku else v for v in product.variants],
+            images=product.images,
+            description=product.description,
+            original_price=product.original_price,
+        )
+        await self._repository.save_product(updated)
+        return updated
+
+
+class RemoveProductVariant:
+    """Remove uma variante de um produto — uso administrativo (RBAC
+    STAFF/ADMIN aplicado no api-gateway). Não mexe em core-inventory: um
+    StockLevel já registrado para o SKU removido fica órfão (mesma lógica de
+    baixo acoplamento entre bounded contexts do resto do projeto, ADR-0002)
+    — não é um bug, é a fronteira entre os dois cores."""
+
+    def __init__(self, repository: ProductRepository) -> None:
+        self._repository = repository
+
+    async def execute(self, sku: str, variant_sku: str) -> Product:
+        product = await self._repository.get_product(sku)
+        if product is None:
+            raise ProductNotFound(sku)
+
+        if not any(v.sku == variant_sku for v in product.variants):
+            raise VariantNotFound(variant_sku)
+
+        updated = Product(
+            sku=product.sku,
+            name=product.name,
+            category=product.category,
+            price=product.price,
+            variants=[v for v in product.variants if v.sku != variant_sku],
+            images=product.images,
+            description=product.description,
+            original_price=product.original_price,
+        )
+        await self._repository.save_product(updated)
+        return updated
+
+
+class DeleteProduct:
+    """Remove um produto (e suas variantes) do catálogo — uso administrativo
+    (RBAC STAFF/ADMIN aplicado no api-gateway).
+
+    Não mexe em core-cart nem core-inventory: um carrinho que já tinha esse
+    produto guarda sua própria cópia de nome/preço (CartItem não referencia
+    o catálogo), e um StockLevel em core-inventory fica órfão — mesma
+    fronteira de baixo acoplamento entre bounded contexts do resto do
+    projeto (ADR-0002), não um descuido.
+    """
+
+    def __init__(self, repository: ProductRepository) -> None:
+        self._repository = repository
+
+    async def execute(self, sku: str) -> None:
+        if await self._repository.get_product(sku) is None:
+            raise ProductNotFound(sku)
+        await self._repository.delete_product(sku)
+
+
+class DeleteCategory:
+    """Remove uma categoria — uso administrativo (RBAC STAFF/ADMIN aplicado
+    no api-gateway). Nunca cascade-remove os produtos da categoria: se
+    ainda houver algum, levanta CategoryHasProducts em vez de apagar dado
+    silenciosamente."""
+
+    def __init__(self, repository: ProductRepository) -> None:
+        self._repository = repository
+
+    async def execute(self, slug: str) -> None:
+        if await self._repository.get_category(slug) is None:
+            raise CategoryNotFound(slug)
+
+        _items, total = await self._repository.list_products(
+            category_slug=slug, page=1, page_size=1
+        )
+        if total > 0:
+            raise CategoryHasProducts(slug, total)
+
+        await self._repository.delete_category(slug)

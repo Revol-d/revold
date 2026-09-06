@@ -9,6 +9,31 @@ jobs:
   python:
     name: Python — lint & test (core-catalog, core-identity, api-gateway)
     runs-on: ubuntu-latest
+    # Postgres real de verdade, não só o fake em memória: os testes de
+    # adapters/persistence/tests/test_catalog_repository_integration.py
+    # pulam (skip) sozinhos se DATABASE_URL não apontar pra um Postgres
+    # alcançável — sem este service eles rodavam localmente nesta sessão,
+    # mas nunca no CI, e a suíte "verde" escondia isso. pgvector/pgvector
+    # (não a imagem postgres oficial) porque a migração 0003 já cria a
+    # extensão vector, usada por core-ai-assistant.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: revold
+          POSTGRES_PASSWORD: revold_ci_only
+          POSTGRES_DB: revold
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://revold:revold_ci_only@localhost:5432/revold
+      DATABASE_URL_SYNC: postgresql+psycopg2://revold:revold_ci_only@localhost:5432/revold
+      TEST_DATABASE_URL: postgresql+asyncpg://revold:revold_ci_only@localhost:5432/revold
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,6 +47,8 @@ jobs:
         run: poetry run ruff check .
       - name: Type check (mypy)
         run: poetry run mypy . || true # não bloqueante ainda — cores novos entram sem tipagem 100% completa
+      - name: Run migrations (Postgres real do service acima)
+        run: poetry run alembic upgrade head
       - name: Test
         run: poetry run pytest --cov --cov-report=term-missing
 

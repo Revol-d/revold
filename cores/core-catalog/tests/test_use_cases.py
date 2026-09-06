@@ -5,21 +5,27 @@ from decimal import Decimal
 import pytest
 
 from core_catalog.domain import (
+    CategoryHasProducts,
     CategoryNotFound,
     DuplicateSku,
     DuplicateVariantSku,
     Money,
     ProductNotFound,
     ProductVariant,
+    VariantNotFound,
 )
 from core_catalog.use_cases import (
     AddProductVariant,
     CreateCategory,
     CreateProduct,
+    DeleteCategory,
+    DeleteProduct,
     GetProduct,
     ListCategories,
     ListProducts,
+    RemoveProductVariant,
     UpdateProduct,
+    UpdateProductVariant,
 )
 
 
@@ -69,6 +75,26 @@ class TestListProducts:
     async def test_sort_invalido_levanta_erro(self, fake_repository) -> None:
         with pytest.raises(ValueError):
             await ListProducts(fake_repository).execute(sort="preco_qualquer")
+
+    async def test_filtra_por_tamanho(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(sizes=["M"])
+        assert result.total == 1
+        assert result.items[0].sku == "CAM-001"
+
+    async def test_filtra_por_cor(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(colors=["Azul"])
+        assert result.total == 1
+        assert result.items[0].sku == "CAL-001"
+
+    async def test_tamanho_e_cor_exigem_a_mesma_variante(self, fake_repository) -> None:
+        # CAM-001 tem uma variante "P"/Branco e outra "M"/Branco — nenhuma é
+        # "M" e "Azul" ao mesmo tempo, então não deve casar.
+        result = await ListProducts(fake_repository).execute(sizes=["M"], colors=["Azul"])
+        assert result.total == 0
+
+    async def test_filtro_sem_correspondencia_retorna_vazio(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(sizes=["GG"])
+        assert result.total == 0
 
 
 class TestGetProduct:
@@ -223,3 +249,94 @@ class TestAddProductVariant:
         )
         with pytest.raises(DuplicateVariantSku):
             await AddProductVariant(fake_repository).execute("CAM-001", de_outro_produto)
+
+
+class TestUpdateProductVariant:
+    async def test_atualiza_so_o_campo_enviado(self, fake_repository) -> None:
+        updated = await UpdateProductVariant(fake_repository).execute(
+            "CAM-001", "CAM-001-M-BR", in_stock=True
+        )
+        variant = next(v for v in updated.variants if v.sku == "CAM-001-M-BR")
+        assert variant.in_stock is True
+        assert variant.size == "M"  # não enviado, permanece igual
+        assert variant.color == "Branco"  # não enviado, permanece igual
+
+    async def test_atualiza_size_e_color(self, fake_repository) -> None:
+        updated = await UpdateProductVariant(fake_repository).execute(
+            "CAM-001", "CAM-001-P-BR", size="PP", color="Cinza"
+        )
+        variant = next(v for v in updated.variants if v.sku == "CAM-001-P-BR")
+        assert variant.size == "PP"
+        assert variant.color == "Cinza"
+
+    async def test_sku_da_variante_nunca_muda(self, fake_repository) -> None:
+        updated = await UpdateProductVariant(fake_repository).execute(
+            "CAM-001", "CAM-001-P-BR", size="PP"
+        )
+        skus = {v.sku for v in updated.variants}
+        assert "CAM-001-P-BR" in skus
+
+    async def test_produto_inexistente_levanta_not_found(self, fake_repository) -> None:
+        with pytest.raises(ProductNotFound):
+            await UpdateProductVariant(fake_repository).execute(
+                "NAO-EXISTE", "CAM-001-P-BR", in_stock=False
+            )
+
+    async def test_variante_inexistente_levanta_variant_not_found(self, fake_repository) -> None:
+        with pytest.raises(VariantNotFound):
+            await UpdateProductVariant(fake_repository).execute(
+                "CAM-001", "NAO-EXISTE-SKU", in_stock=False
+            )
+
+
+class TestRemoveProductVariant:
+    async def test_remove_variante_existente(self, fake_repository) -> None:
+        updated = await RemoveProductVariant(fake_repository).execute("CAM-001", "CAM-001-M-BR")
+        skus = {v.sku for v in updated.variants}
+        assert "CAM-001-M-BR" not in skus
+        assert len(updated.variants) == 1
+
+    async def test_produto_inexistente_levanta_not_found(self, fake_repository) -> None:
+        with pytest.raises(ProductNotFound):
+            await RemoveProductVariant(fake_repository).execute("NAO-EXISTE", "CAM-001-P-BR")
+
+    async def test_variante_inexistente_levanta_variant_not_found(self, fake_repository) -> None:
+        with pytest.raises(VariantNotFound):
+            await RemoveProductVariant(fake_repository).execute("CAM-001", "NAO-EXISTE-SKU")
+
+    async def test_remover_todas_as_variantes_e_permitido(self, fake_repository) -> None:
+        # Um produto pode ficar sem nenhuma variante (peça única, sem grade
+        # de tamanho/cor) — não é um estado inválido.
+        await RemoveProductVariant(fake_repository).execute("CAM-001", "CAM-001-P-BR")
+        updated = await RemoveProductVariant(fake_repository).execute("CAM-001", "CAM-001-M-BR")
+        assert updated.variants == []
+
+
+class TestDeleteProduct:
+    async def test_remove_produto_existente(self, fake_repository) -> None:
+        await DeleteProduct(fake_repository).execute("CAM-001")
+        with pytest.raises(ProductNotFound):
+            await GetProduct(fake_repository).execute("CAM-001")
+
+    async def test_produto_inexistente_levanta_not_found(self, fake_repository) -> None:
+        with pytest.raises(ProductNotFound):
+            await DeleteProduct(fake_repository).execute("NAO-EXISTE")
+
+
+class TestDeleteCategory:
+    async def test_categoria_inexistente_levanta_not_found(self, fake_repository) -> None:
+        with pytest.raises(CategoryNotFound):
+            await DeleteCategory(fake_repository).execute("nao-existe")
+
+    async def test_categoria_com_produtos_levanta_category_has_products(
+        self, fake_repository
+    ) -> None:
+        # "camisetas" tem CAM-001 no fixture sample_products.
+        with pytest.raises(CategoryHasProducts):
+            await DeleteCategory(fake_repository).execute("camisetas")
+
+    async def test_categoria_sem_produtos_e_removida(self, fake_repository) -> None:
+        await CreateCategory(fake_repository).execute(slug="acessorios", name="Acessórios")
+        await DeleteCategory(fake_repository).execute("acessorios")
+        categorias = await ListCategories(fake_repository).execute()
+        assert "acessorios" not in {c.slug for c in categorias}

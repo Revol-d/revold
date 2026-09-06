@@ -82,3 +82,12 @@ class UpdateProductRequestSchema(BaseModel):
     images: list[str] | None = None
     original_price: MoneySchema | None = None
     clear_original_price: bool = False
+
+
+class UpdateProductVariantRequestSchema(BaseModel):
+    """Todo campo é opcional: só o que for enviado é alterado. O SKU da
+    variante nunca muda por aqui (ver core_catalog.use_cases.UpdateProductVariant)."""
+
+    size: str | None = None
+    color: str | None = None
+    in_stock: bool | None = None

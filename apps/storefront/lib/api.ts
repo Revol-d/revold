@@ -87,6 +87,8 @@ export function listProducts(params: {
   category?: string;
   q?: string;
   sort?: ProductSort;
+  sizes?: string[];
+  colors?: string[];
   page?: number;
   pageSize?: number;
 }): Promise<ProductPage> {
@@ -94,6 +96,8 @@ export function listProducts(params: {
   if (params.category) query.set("category", params.category);
   if (params.q) query.set("q", params.q);
   if (params.sort) query.set("sort", params.sort);
+  for (const size of params.sizes ?? []) query.append("size", size);
+  for (const color of params.colors ?? []) query.append("color", color);
   if (params.page) query.set("page", String(params.page));
   if (params.pageSize) query.set("page_size", String(params.pageSize));
   const qs = query.toString();

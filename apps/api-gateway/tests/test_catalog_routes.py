@@ -40,7 +40,15 @@ class _FakeRepository:
         self._categories[category.slug] = category
 
     async def list_products(
-        self, *, category_slug, page, page_size, search_query=None, sort="relevance"
+        self,
+        *,
+        category_slug,
+        page,
+        page_size,
+        search_query=None,
+        sort="relevance",
+        sizes=None,
+        colors=None,
     ):
         items = list(self._products.values())
         if category_slug:
@@ -48,6 +56,15 @@ class _FakeRepository:
         if search_query:
             needle = search_query.lower()
             items = [p for p in items if needle in p.name.lower()]
+        if sizes or colors:
+            items = [
+                p
+                for p in items
+                if any(
+                    (not sizes or v.size in sizes) and (not colors or v.color in colors)
+                    for v in p.variants
+                )
+            ]
         items.sort(key=lambda p: p.sku)
         if sort == "price_asc":
             items.sort(key=lambda p: p.price.amount)
@@ -66,6 +83,12 @@ class _FakeRepository:
             if any(v.sku == variant_sku for v in product.variants):
                 return product.sku
         return None
+
+    async def delete_product(self, sku):
+        self._products.pop(sku, None)
+
+    async def delete_category(self, slug):
+        self._categories.pop(slug, None)
 
 
 _STAFF_USER = AuthenticatedUser(
@@ -123,6 +146,36 @@ async def test_list_products_busca_por_nome(client: AsyncClient) -> None:
 async def test_list_products_sort_invalido_retorna_422(client: AsyncClient) -> None:
     response = await client.get("/api/catalog/products", params={"sort": "aleatorio"})
     assert response.status_code == 422
+
+
+async def test_list_products_filtra_por_tamanho(client: AsyncClient) -> None:
+    response = await client.get("/api/catalog/products", params={"size": ["P"]})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+    response = await client.get("/api/catalog/products", params={"size": ["GG"]})
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
+
+
+async def test_list_products_filtra_por_cor(client: AsyncClient) -> None:
+    response = await client.get("/api/catalog/products", params={"color": ["Branco"]})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+    response = await client.get("/api/catalog/products", params={"color": ["Azul"]})
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
+
+
+async def test_list_products_tamanho_e_cor_combinados_exigem_mesma_variante(
+    client: AsyncClient,
+) -> None:
+    response = await client.get(
+        "/api/catalog/products", params={"size": ["P"], "color": ["Azul"]}
+    )
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
 
 
 async def test_get_product_not_found(client: AsyncClient) -> None:
@@ -274,4 +327,104 @@ async def test_add_product_variant_com_papel_customer_retorna_403(client: AsyncC
         "/api/catalog/products/CAM-001/variants",
         json={"sku": "CAM-001-GG", "size": "GG", "color": "Branco"},
     )
+    assert response.status_code == 403
+
+
+async def test_update_product_variant_com_papel_staff_atualiza(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.patch(
+        "/api/catalog/products/CAM-001/variants/CAM-001-P",
+        json={"in_stock": False},
+    )
+    assert response.status_code == 200
+    variant = next(v for v in response.json()["variants"] if v["sku"] == "CAM-001-P")
+    assert variant["in_stock"] is False
+    assert variant["size"] == "P"
+
+
+async def test_update_product_variant_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.patch(
+        "/api/catalog/products/CAM-001/variants/NAO-EXISTE",
+        json={"in_stock": False},
+    )
+    assert response.status_code == 404
+
+
+async def test_update_product_variant_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.patch(
+        "/api/catalog/products/CAM-001/variants/CAM-001-P",
+        json={"in_stock": False},
+    )
+    assert response.status_code == 403
+
+
+async def test_remove_product_variant_com_papel_staff_remove(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/catalog/products/CAM-001/variants/CAM-001-P")
+    assert response.status_code == 200
+    variantes = [v["sku"] for v in response.json()["variants"]]
+    assert "CAM-001-P" not in variantes
+
+
+async def test_remove_product_variant_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/catalog/products/CAM-001/variants/NAO-EXISTE")
+    assert response.status_code == 404
+
+
+async def test_remove_product_variant_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.delete("/api/catalog/products/CAM-001/variants/CAM-001-P")
+    assert response.status_code == 403
+
+
+async def test_delete_product_com_papel_staff_remove(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/catalog/products/CAM-001")
+    assert response.status_code == 204
+
+    seguinte = await client.get("/api/catalog/products/CAM-001")
+    assert seguinte.status_code == 404
+
+
+async def test_delete_product_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/catalog/products/NAO-EXISTE")
+    assert response.status_code == 404
+
+
+async def test_delete_product_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.delete("/api/catalog/products/CAM-001")
+    assert response.status_code == 403
+
+
+async def test_delete_category_com_produtos_retorna_409(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/catalog/categories/camisetas")
+    assert response.status_code == 409
+
+
+async def test_delete_category_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/catalog/categories/nao-existe")
+    assert response.status_code == 404
+
+
+async def test_delete_category_sem_produtos_remove(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    criada = await client.post(
+        "/api/catalog/categories", json={"slug": "acessorios", "name": "Acessórios"}
+    )
+    assert criada.status_code == 201
+
+    response = await client.delete("/api/catalog/categories/acessorios")
+    assert response.status_code == 204
+
+
+async def test_delete_category_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.delete("/api/catalog/categories/camisetas")
     assert response.status_code == 403

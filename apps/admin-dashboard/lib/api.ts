@@ -189,6 +189,34 @@ export function addProductVariant(
   });
 }
 
+export interface UpdateProductVariantInput {
+  size?: string;
+  color?: string;
+  in_stock?: boolean;
+}
+
+export function updateProductVariant(
+  sku: string,
+  variantSku: string,
+  input: UpdateProductVariantInput
+): Promise<Product> {
+  return apiFetch<Product>(
+    `/api/catalog/products/${encodeURIComponent(sku)}/variants/${encodeURIComponent(variantSku)}`,
+    { method: "PATCH", body: JSON.stringify(input) }
+  );
+}
+
+export function removeProductVariant(sku: string, variantSku: string): Promise<Product> {
+  return apiFetch<Product>(
+    `/api/catalog/products/${encodeURIComponent(sku)}/variants/${encodeURIComponent(variantSku)}`,
+    { method: "DELETE" }
+  );
+}
+
+export function deleteProduct(sku: string): Promise<void> {
+  return apiFetch<void>(`/api/catalog/products/${encodeURIComponent(sku)}`, { method: "DELETE" });
+}
+
 export function getStockLevel(sku: string): Promise<StockLevel> {
   return apiFetch<StockLevel>(`/api/inventory/${encodeURIComponent(sku)}`);
 }

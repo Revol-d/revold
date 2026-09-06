@@ -1,7 +1,8 @@
 """Implementação real (Azure OpenAI) da porta core_ai_assistant.ports.LLMProvider.
 
-Código completo, mas **não testado contra a API de verdade** — não há
-credencial Azure OpenAI disponível no ambiente onde isto foi escrito (ver
+Testado via sandbox HTTP (respx, ver adapters/external/tests/
+test_azure_openai_provider.py) — nunca contra a API de verdade, porque não
+há credencial Azure OpenAI disponível no ambiente onde isto foi escrito (ver
 ADR-0011 e a avaliação de planejamento, seção 3.3: toda integração externa
 tem que ter porta + adapter sandbox testável, e o adapter real entra assim
 que houver credencial, sem mudar quem chama a porta).
@@ -44,6 +45,17 @@ class AzureOpenAILLMProvider:
             api_key=secret_api_key,
             azure_deployment=embedding_deployment,
             api_version=api_version,
+            # Sem isto, langchain-openai baixa o arquivo de encoding do
+            # tiktoken de um blob storage público da Microsoft na primeira
+            # chamada (rede real, fora do controle do adapter) só pra
+            # contar/cortar tokens localmente antes de mandar pra API. Numa
+            # rede com egress restrito (como o Terraform deste projeto se
+            # propõe a controlar) isso pode falhar silenciosamente na
+            # primeira chamada em produção. Descrição de produto é curta o
+            # bastante pra não precisar de corte local — deixa a Azure
+            # rejeitar com 400 no caso raro de passar do limite, em vez de
+            # depender dessa chamada de rede escondida.
+            check_embedding_ctx_length=False,
         )
 
     async def embed(self, text: str) -> list[float]:

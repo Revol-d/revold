@@ -17,6 +17,7 @@ Este monorepo segue Domain-Driven Design, Hexagonal Architecture (Ports & Adapte
 | [0009](adr/0009-docker-first-para-desenvolvimento-local.md) | Docker-first para desenvolvimento local |
 | [0010](adr/0010-sessao-via-cookie-httponly-redis.md) | Sessão de autenticação via cookie HttpOnly + Redis |
 | [0011](adr/0011-escopo-do-assistente-de-ia.md) | Escopo do assistente de IA (RAG sobre catálogo + LangGraph) |
+| [0012](adr/0012-estrategia-de-testes-dados-realistas-e-evals.md) | Estratégia de testes — dados realistas, sandbox de serviço externo, e evals de agente de IA |
 
 Toda nova decisão arquitetural relevante (novo core, nova camada, mudança de infraestrutura, troca de provedor externo) deve ganhar um ADR novo antes da implementação, não depois.
 

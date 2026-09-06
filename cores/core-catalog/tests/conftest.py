@@ -36,6 +36,8 @@ class FakeProductRepository:
         page_size: int,
         search_query: str | None = None,
         sort: str = "relevance",
+        sizes: list[str] | None = None,
+        colors: list[str] | None = None,
     ) -> tuple[list[Product], int]:
         items = list(self._products.values())
         if category_slug is not None:
@@ -43,6 +45,15 @@ class FakeProductRepository:
         if search_query:
             needle = search_query.lower()
             items = [p for p in items if needle in p.name.lower()]
+        if sizes or colors:
+            items = [
+                p
+                for p in items
+                if any(
+                    (not sizes or v.size in sizes) and (not colors or v.color in colors)
+                    for v in p.variants
+                )
+            ]
         items.sort(key=lambda p: p.sku)
         if sort == "price_asc":
             items.sort(key=lambda p: p.price.amount)
@@ -63,6 +74,12 @@ class FakeProductRepository:
             if any(v.sku == variant_sku for v in product.variants):
                 return product.sku
         return None
+
+    async def delete_product(self, sku: str) -> None:
+        self._products.pop(sku, None)
+
+    async def delete_category(self, slug: str) -> None:
+        self._categories.pop(slug, None)
 
 
 @pytest.fixture
