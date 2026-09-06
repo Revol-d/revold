@@ -1,0 +1,9 @@
+# Config de scrape do Prometheus (ADR-0017) — só um job: o próprio
+# api-gateway, no endpoint /metrics montado em apps/api-gateway/src/api_gateway/main.py.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: revold-api-gateway
+    static_configs:
+      - targets: ["api-gateway:8000"]

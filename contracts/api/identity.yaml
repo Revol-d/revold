@@ -69,6 +69,53 @@ paths:
         "401":
           description: Sem sessão válida (cookie ausente, inválido ou expirado)
 
+  /api-keys:
+    post:
+      operationId: issueApiKey
+      summary: >
+        Emite uma API key para um parceiro/integração (ADR-0016) — uso
+        administrativo, papel ADMIN (mais restrito que os endpoints de
+        catálogo/estoque, que também aceitam STAFF). `raw_key` só aparece
+        nesta resposta — perdida a partir daqui, só dá pra revogar e emitir
+        outra.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IssueApiKeyRequest" }
+      responses:
+        "201":
+          description: Chave emitida
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IssuedApiKey" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel ADMIN exigido
+  /api-keys/{key_id}:
+    delete:
+      operationId: revokeApiKey
+      summary: Revoga uma API key existente — uso administrativo, papel ADMIN
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: key_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Revogada
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel ADMIN exigido
+        "404":
+          description: API key não encontrada
+
 components:
   schemas:
     StartLoginRequest:
@@ -99,3 +146,19 @@ components:
         roles:
           type: array
           items: { type: string, enum: [customer, staff, admin] }
+    IssueApiKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, description: "Nome do parceiro/integração dono da chave" }
+    IssuedApiKey:
+      type: object
+      required: [key_id, name, raw_key]
+      properties:
+        key_id: { type: string }
+        name: { type: string }
+        raw_key:
+          type: string
+          description: >
+            Chave em texto puro — só aparece nesta resposta, nunca é
+            possível recuperá-la de novo depois (ver ADR-0016).

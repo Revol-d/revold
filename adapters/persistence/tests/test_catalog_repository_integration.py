@@ -225,7 +225,7 @@ class TestListProductsContraSqlDeVerdade:
         assert total == 1
         assert items[0].sku == "CAL-001"
 
-    async def test_busca_por_substring_via_ilike_real(
+    async def test_busca_full_text_por_palavra_de_verdade(
         self, repository: PostgresProductRepository, camisetas: Category
     ) -> None:
         await repository.save_product(
@@ -248,6 +248,80 @@ class TestListProductsContraSqlDeVerdade:
         )
         assert total == 1
         assert items[0].sku == "CAM-001"
+
+    async def test_busca_full_text_tolera_falta_de_acento(
+        self, repository: PostgresProductRepository, camisetas: Category
+    ) -> None:
+        """Achado real do ADR-0014: com ILIKE, buscar "camiseta" (sem
+        acento) nunca casava com um nome que tivesse variação acentuada
+        (ou vice-versa). A configuração pt_unaccent normaliza os dois lados
+        antes de comparar."""
+        await repository.save_product(
+            Product(
+                sku="CAM-001",
+                name="Vestido Rendado",
+                description="Vestido com renda francesa, ideal pra ocasião especial",
+                category=camisetas,
+                price=Money(Decimal("199.90")),
+                variants=[],
+            )
+        )
+
+        items, total = await repository.list_products(
+            category_slug=None, page=1, page_size=10, search_query="ocasiao"
+        )
+        assert total == 1
+        assert items[0].sku == "CAM-001"
+
+    async def test_busca_full_text_tolera_plural(
+        self, repository: PostgresProductRepository, camisetas: Category
+    ) -> None:
+        await repository.save_product(
+            Product(
+                sku="CAM-002",
+                name="Camisetas Básicas",
+                category=camisetas,
+                price=Money(Decimal("39.90")),
+                variants=[],
+            )
+        )
+
+        items, total = await repository.list_products(
+            category_slug=None, page=1, page_size=10, search_query="camiseta"
+        )
+        assert total == 1
+        assert items[0].sku == "CAM-002"
+
+    async def test_busca_full_text_ordena_por_relevancia(
+        self, repository: PostgresProductRepository, camisetas: Category
+    ) -> None:
+        """Produto com o termo buscado repetido no nome E na descrição deve
+        rankear acima de um produto que só menciona o termo uma vez —
+        comportamento que o ILIKE (ordenado por SKU) nunca teve."""
+        await repository.save_product(
+            Product(
+                sku="Z-MENOS-RELEVANTE",
+                name="Bolsa com detalhe listrado",
+                category=camisetas,
+                price=Money(Decimal("89.90")),
+                variants=[],
+            )
+        )
+        await repository.save_product(
+            Product(
+                sku="A-MAIS-RELEVANTE",
+                name="Camiseta Listrada",
+                description="Camiseta listrada, listras horizontais",
+                category=camisetas,
+                price=Money(Decimal("50")),
+                variants=[],
+            )
+        )
+
+        items, _total = await repository.list_products(
+            category_slug=None, page=1, page_size=10, search_query="listrada", sort="relevance"
+        )
+        assert [p.sku for p in items] == ["A-MAIS-RELEVANTE", "Z-MENOS-RELEVANTE"]
 
 
 class TestDeleteContraSqlDeVerdade:

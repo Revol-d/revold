@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import ARRAY, ForeignKey, Numeric, String
+from sqlalchemy import ARRAY, Computed, ForeignKey, Numeric, String
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from adapters_persistence.db import Base
@@ -29,6 +30,17 @@ class ProductModel(Base):
     price_currency: Mapped[str] = mapped_column(String(3), default="BRL")
     original_price_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     images: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    # Coluna gerada pelo Postgres (migration 0004, ADR-0014) — nunca
+    # escrita pela aplicação; o Computed() aqui só avisa o SQLAlchemy pra
+    # excluir esta coluna de INSERT/UPDATE (quem recalcula é o banco).
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('pt_unaccent', coalesce(name, '') || ' ' || coalesce(description, ''))",
+            persisted=True,
+        ),
+        nullable=True,
+    )
 
     category: Mapped[CategoryModel] = relationship(back_populates="products")
     variants: Mapped[list["ProductVariantModel"]] = relationship(

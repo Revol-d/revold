@@ -65,3 +65,17 @@ class ProductRepository(Protocol):
         verifica se há produtos ligados a ela — essa checagem é do caso de
         uso (core_catalog.use_cases.DeleteCategory), não do repositório."""
         ...
+
+
+class MediaStorage(Protocol):
+    """Porta de armazenamento de arquivo (ADR-0015) — hoje usada só para
+    imagem de produto, mas escrita de propósito genérica (key/bytes/URL) pra
+    servir qualquer upload futuro do framework, não só catálogo."""
+
+    async def upload(self, *, key: str, content: bytes, content_type: str) -> str:
+        """Salva o conteúdo sob `key` e retorna a URL pública de acesso."""
+        ...
+
+    async def delete(self, key: str) -> None:
+        """Remove o arquivo. Não faz nada (idempotente) se `key` não existir."""
+        ...

@@ -74,9 +74,18 @@ class PostgresProductRepository:
         if category_slug is not None:
             query = query.where(ProductModel.category_slug == category_slug)
             count_query = count_query.where(ProductModel.category_slug == category_slug)
+        text_search_rank = None
         if search_query:
-            query = query.where(ProductModel.name.ilike(f"%{search_query}%"))
-            count_query = count_query.where(ProductModel.name.ilike(f"%{search_query}%"))
+            # Full-text search (tsvector, ADR-0014) em vez de ILIKE: tolera
+            # acento (config pt_unaccent) e variação de plural/gênero
+            # (stemming em português) — "camisêta"/"camisetas" casam com
+            # "camiseta" do mesmo jeito. A coluna search_vector é gerada
+            # pelo Postgres (migration 0004), nunca escrita pela aplicação.
+            ts_query = func.plainto_tsquery("pt_unaccent", search_query)
+            match = ProductModel.search_vector.op("@@")(ts_query)
+            query = query.where(match)
+            count_query = count_query.where(match)
+            text_search_rank = func.ts_rank(ProductModel.search_vector, ts_query)
         if sizes or colors:
             # EXISTS em vez de JOIN: uma variante que casa tamanho E cor não
             # deve duplicar a linha do produto no resultado. sizes/colors
@@ -94,6 +103,10 @@ class PostgresProductRepository:
             query = query.order_by(ProductModel.price_amount.asc())
         elif sort == "price_desc":
             query = query.order_by(ProductModel.price_amount.desc())
+        elif text_search_rank is not None:
+            # "relevance" com busca de texto: ordena pelo quão bem o
+            # produto casa com a query (ts_rank), não por SKU.
+            query = query.order_by(text_search_rank.desc())
         else:
             query = query.order_by(ProductModel.sku.asc())
 

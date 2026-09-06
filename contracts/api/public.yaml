@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: Revold Public/Partner API
+  version: "1.0.0"
+  description: >
+    Contrato da API pública/parceiro (ADR-0016) — exposição de dados do
+    catálogo para integrações externas (ex. um ERP, um segundo canal de
+    venda). Diferente de /api/catalog (consumido por storefront/
+    admin-dashboard, autenticado por sessão de cookie), esta API é
+    autenticada por API key (header X-API-Key) e sujeita a rate limit por
+    chave — nunca por sessão de navegador.
+servers:
+  - url: /api/public/v1
+paths:
+  /products:
+    get:
+      operationId: listProductsPublic
+      summary: Lista produtos do catálogo — leitura, para parceiro/integração
+      security:
+        - apiKey: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "catalog.yaml#/components/schemas/ProductPage" }
+        "401":
+          description: Header X-API-Key ausente, ou chave inválida/revogada
+        "429":
+          description: >
+            Limite de requisições excedido (PUBLIC_API_RATE_LIMIT por
+            PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS, por chave — default 60
+            requisições / 60 segundos)
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key

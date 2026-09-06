@@ -82,6 +82,26 @@ class FakeProductRepository:
         self._categories.pop(slug, None)
 
 
+class FakeMediaStorage:
+    """Adapter fake em memória de core_catalog.ports.MediaStorage — usado só
+    em teste (o equivalente real é adapters_external.media)."""
+
+    def __init__(self) -> None:
+        self.uploaded: dict[str, bytes] = {}
+
+    async def upload(self, *, key: str, content: bytes, content_type: str) -> str:
+        self.uploaded[key] = content
+        return f"https://fake-storage.test/{key}"
+
+    async def delete(self, key: str) -> None:
+        self.uploaded.pop(key, None)
+
+
+@pytest.fixture
+def fake_media_storage() -> FakeMediaStorage:
+    return FakeMediaStorage()
+
+
 @pytest.fixture
 def sample_products() -> list[Product]:
     camisetas = Category(slug="camisetas", name="Camisetas")

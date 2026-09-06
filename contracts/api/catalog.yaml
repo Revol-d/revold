@@ -227,6 +227,49 @@ paths:
           description: Papel STAFF/ADMIN exigido
         "404":
           description: Produto não encontrado
+  /products/{sku}/images:
+    post:
+      operationId: addProductImage
+      summary: >
+        Upload de arquivo de imagem de verdade (ADR-0015) — diferente de
+        PATCH /products/{sku}, que só aceita substituir a lista inteira de
+        imagens por URLs já conhecidas (coladas à mão). Uso administrativo,
+        papel STAFF/ADMIN.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: >
+                    image/jpeg, image/png ou image/webp — máximo de 10MB.
+      responses:
+        "201":
+          description: Imagem enviada e anexada — retorna o produto atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Product" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF/ADMIN exigido
+        "404":
+          description: Produto não encontrado
+        "422":
+          description: Tipo de arquivo não suportado ou tamanho acima do limite
   /products/{sku}/variants:
     post:
       operationId: addProductVariant

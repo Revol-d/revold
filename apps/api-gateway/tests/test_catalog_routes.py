@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_product_repository
+from api_gateway.dependencies import get_media_storage, get_product_repository
 from api_gateway.main import app
 from api_gateway.security import get_current_user
 from core_catalog.domain import Category, Money, Product, ProductVariant
@@ -89,6 +89,29 @@ class _FakeRepository:
 
     async def delete_category(self, slug):
         self._categories.pop(slug, None)
+
+
+class _FakeMediaStorage:
+    """Fake em memória de MediaStorage (ADR-0015) — mesma convenção do
+    resto deste arquivo: sem infra real, só pra validar o contrato HTTP."""
+
+    def __init__(self) -> None:
+        self.uploaded: dict[str, tuple[bytes, str]] = {}
+
+    async def upload(self, *, key: str, content: bytes, content_type: str) -> str:
+        self.uploaded[key] = (content, content_type)
+        return f"https://fake-media.example.com/{key}"
+
+    async def delete(self, key: str) -> None:
+        self.uploaded.pop(key, None)
+
+
+@pytest.fixture(autouse=True)
+def override_media_storage():
+    storage = _FakeMediaStorage()
+    app.dependency_overrides[get_media_storage] = lambda: storage
+    yield storage
+    app.dependency_overrides.pop(get_media_storage, None)
 
 
 _STAFF_USER = AuthenticatedUser(
@@ -427,4 +450,96 @@ async def test_delete_category_sem_produtos_remove(client: AsyncClient) -> None:
 async def test_delete_category_com_papel_customer_retorna_403(client: AsyncClient) -> None:
     app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
     response = await client.delete("/api/catalog/categories/camisetas")
+    assert response.status_code == 403
+
+
+async def test_add_product_image_com_papel_staff_faz_upload_e_anexa_url(
+    client: AsyncClient, override_media_storage: _FakeMediaStorage
+) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/images",
+        files={"file": ("foto.jpg", b"conteudo-fake-da-foto", "image/jpeg")},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert len(body["images"]) == 2  # já tinha 1, ganhou mais 1
+    nova_url = body["images"][-1]
+    assert nova_url.startswith("https://fake-media.example.com/products/CAM-001/")
+    assert nova_url.endswith("-foto.jpg")
+
+    # confirma que o conteúdo/bytes foram realmente repassados ao MediaStorage
+    (content, content_type), = [
+        v for k, v in override_media_storage.uploaded.items() if k in nova_url
+    ]
+    assert content == b"conteudo-fake-da-foto"
+    assert content_type == "image/jpeg"
+
+
+async def test_add_product_image_sanitiza_nome_de_arquivo_perigoso(
+    client: AsyncClient, override_media_storage: _FakeMediaStorage
+) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/images",
+        files={"file": ("../../etc/passwd.jpg", b"x", "image/jpeg")},
+    )
+    assert response.status_code == 201
+    nova_url = response.json()["images"][-1]
+    # a sanitização (core_catalog.use_cases._UNSAFE_FILENAME_CHARS) troca
+    # cada sequência de "/" por "_", então o nome vira um único segmento
+    # sem barra nenhuma — impossível "escapar" do diretório
+    # products/{sku}/ mesmo contendo ".." literais, já que não sobra "/"
+    # para formar um caminho novo (ver LocalFilesystemStorage.upload, que
+    # faz base_dir / key sem outra validação).
+    assert nova_url.startswith("https://fake-media.example.com/products/CAM-001/")
+    caminho_apos_prefixo = nova_url.removeprefix(
+        "https://fake-media.example.com/products/CAM-001/"
+    )
+    assert "/" not in caminho_apos_prefixo
+    assert caminho_apos_prefixo.endswith("-.._.._etc_passwd.jpg")
+
+
+async def test_add_product_image_tipo_nao_suportado_retorna_422(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/images",
+        files={"file": ("arquivo.txt", b"nao e imagem", "text/plain")},
+    )
+    assert response.status_code == 422
+
+
+async def test_add_product_image_maior_que_limite_retorna_422(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    conteudo_grande = b"x" * (10 * 1024 * 1024 + 1)
+    response = await client.post(
+        "/api/catalog/products/CAM-001/images",
+        files={"file": ("grande.jpg", conteudo_grande, "image/jpeg")},
+    )
+    assert response.status_code == 422
+
+
+async def test_add_product_image_produto_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post(
+        "/api/catalog/products/NAO-EXISTE/images",
+        files={"file": ("foto.jpg", b"x", "image/jpeg")},
+    )
+    assert response.status_code == 404
+
+
+async def test_add_product_image_sem_autenticacao_retorna_401(client: AsyncClient) -> None:
+    response = await client.post(
+        "/api/catalog/products/CAM-001/images",
+        files={"file": ("foto.jpg", b"x", "image/jpeg")},
+    )
+    assert response.status_code == 401
+
+
+async def test_add_product_image_com_papel_customer_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _CUSTOMER_USER
+    response = await client.post(
+        "/api/catalog/products/CAM-001/images",
+        files={"file": ("foto.jpg", b"x", "image/jpeg")},
+    )
     assert response.status_code == 403

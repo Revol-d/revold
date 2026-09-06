@@ -5,9 +5,10 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_identity_provider, get_session_repository
+from api_gateway.dependencies import get_api_key_auth, get_identity_provider, get_session_repository
 from api_gateway.main import app
-from core_identity.domain import AuthenticatedUser, Role
+from api_gateway.security import get_current_user
+from core_identity.domain import ApiKeyNotFound, ApiKeyPrincipal, AuthenticatedUser, Role
 
 
 class _FakeIdentityProvider:
@@ -46,6 +47,55 @@ class _FakeSessionRepository:
 
     async def delete(self, session_id: str) -> None:
         self._sessions.pop(session_id, None)
+
+
+class _FakeApiKeyAuth:
+    """Mesma forma da FakeApiKeyAuth de cores/core-identity/tests/conftest.py
+    — duplicada aqui de propósito (convenção deste monorepo: cada suíte
+    mantém seus próprios fakes, ver docstring de outros testes)."""
+
+    def __init__(self) -> None:
+        self._by_raw_key: dict[str, ApiKeyPrincipal] = {}
+        self._principals: dict[str, ApiKeyPrincipal] = {}
+
+    async def issue(self, *, name: str) -> tuple[ApiKeyPrincipal, str]:
+        import secrets
+        import uuid
+
+        principal = ApiKeyPrincipal(key_id=str(uuid.uuid4()), name=name)
+        raw_key = f"fake_{secrets.token_hex(8)}"
+        self._by_raw_key[raw_key] = principal
+        self._principals[principal.key_id] = principal
+        return principal, raw_key
+
+    async def resolve(self, raw_key: str) -> ApiKeyPrincipal | None:
+        principal = self._by_raw_key.get(raw_key)
+        if principal is None or principal.key_id not in self._principals:
+            return None
+        return principal
+
+    async def revoke(self, key_id: str) -> None:
+        if key_id not in self._principals:
+            raise ApiKeyNotFound(key_id)
+        del self._principals[key_id]
+
+
+_ADMIN_USER = AuthenticatedUser(
+    external_id="admin-1", provider="dev", email="admin@example.com", name="Admin",
+    roles=(Role.ADMIN,),
+)
+_STAFF_USER = AuthenticatedUser(
+    external_id="staff-1", provider="dev", email="staff@example.com", name="Staff",
+    roles=(Role.STAFF,),
+)
+
+
+@pytest.fixture(autouse=True)
+def override_api_key_auth():
+    fake_auth = _FakeApiKeyAuth()
+    app.dependency_overrides[get_api_key_auth] = lambda: fake_auth
+    yield fake_auth
+    app.dependency_overrides.pop(get_api_key_auth, None)
 
 
 @pytest.fixture(autouse=True)
@@ -119,3 +169,55 @@ async def test_logout_apaga_sessao(client: AsyncClient) -> None:
 
     me_response = await client.get("/api/auth/me", cookies={"session_id": session_id})
     assert me_response.status_code == 401
+
+
+async def test_issue_api_key_sem_autenticacao_retorna_401(client: AsyncClient) -> None:
+    response = await client.post("/api/auth/api-keys", json={"name": "Parceiro ERP"})
+    assert response.status_code == 401
+
+
+async def test_issue_api_key_com_papel_staff_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.post("/api/auth/api-keys", json={"name": "Parceiro ERP"})
+    assert response.status_code == 403
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_issue_api_key_com_papel_admin_emite_chave(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _ADMIN_USER
+    response = await client.post("/api/auth/api-keys", json={"name": "Parceiro ERP"})
+    app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["name"] == "Parceiro ERP"
+    assert body["key_id"]
+    assert body["raw_key"]
+
+
+async def test_revoke_api_key_com_papel_admin_revoga(
+    client: AsyncClient, override_api_key_auth: _FakeApiKeyAuth
+) -> None:
+    principal, _raw_key = await override_api_key_auth.issue(name="Parceiro ERP")
+
+    app.dependency_overrides[get_current_user] = lambda: _ADMIN_USER
+    response = await client.delete(f"/api/auth/api-keys/{principal.key_id}")
+    app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 204
+
+
+async def test_revoke_api_key_inexistente_retorna_404(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _ADMIN_USER
+    response = await client.delete("/api/auth/api-keys/nao-existe")
+    app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 404
+
+
+async def test_revoke_api_key_com_papel_staff_retorna_403(client: AsyncClient) -> None:
+    app.dependency_overrides[get_current_user] = lambda: _STAFF_USER
+    response = await client.delete("/api/auth/api-keys/qualquer-um")
+    app.dependency_overrides.pop(get_current_user, None)
+
+    assert response.status_code == 403

@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_inventory_repository, get_notification_channel
+from api_gateway.dependencies import get_event_publisher, get_inventory_repository
 from api_gateway.main import app
 from api_gateway.security import get_current_user
+from core_events.domain import DomainEvent
 from core_identity.domain import AuthenticatedUser, Role
 from core_inventory.domain import StockLevel
-from core_notification.domain import Notification
 
 _STAFF_USER = AuthenticatedUser(
     external_id="staff-1",
@@ -32,24 +32,24 @@ class _FakeInventoryRepository:
         self._levels[stock_level.sku] = stock_level
 
 
-class _FakeNotificationChannel:
+class _FakeEventPublisher:
     def __init__(self) -> None:
-        self.sent: list[Notification] = []
+        self.published: list[DomainEvent] = []
 
-    async def send(self, notification: Notification) -> None:
-        self.sent.append(notification)
+    async def publish(self, event: DomainEvent) -> None:
+        self.published.append(event)
 
 
 @pytest.fixture
-def fake_notification_channel() -> _FakeNotificationChannel:
-    return _FakeNotificationChannel()
+def fake_event_publisher() -> _FakeEventPublisher:
+    return _FakeEventPublisher()
 
 
 @pytest.fixture(autouse=True)
-def override_dependencies(fake_notification_channel: _FakeNotificationChannel):
+def override_dependencies(fake_event_publisher: _FakeEventPublisher):
     fake_repo = _FakeInventoryRepository()
     app.dependency_overrides[get_inventory_repository] = lambda: fake_repo
-    app.dependency_overrides[get_notification_channel] = lambda: fake_notification_channel
+    app.dependency_overrides[get_event_publisher] = lambda: fake_event_publisher
     # Endpoints administrativos (receive/reserve/release) exigem STAFF/ADMIN
     # (ADR-0010) — os testes de contrato aqui autenticam como staff; os
     # testes de RBAC em si (401/403) ficam em test_inventory_rbac.py.
@@ -128,23 +128,23 @@ async def test_reserve_com_quantidade_zero_retorna_erro_de_validacao(client: Asy
     assert response.status_code == 422
 
 
-async def test_reserve_abaixo_do_limiar_notifica_low_stock(
-    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+async def test_reserve_abaixo_do_limiar_publica_evento_stock_low(
+    client: AsyncClient, fake_event_publisher: _FakeEventPublisher
 ) -> None:
     # limiar padrão (LOW_STOCK_THRESHOLD) é 5
     await client.post("/api/inventory/A/receive", json={"quantity": 10})
     response = await client.post("/api/inventory/A/reserve", json={"quantity": 8})
     assert response.status_code == 200
-    assert len(fake_notification_channel.sent) == 1
-    notification = fake_notification_channel.sent[0]
-    assert notification.event_type == "low_stock"
-    assert "A" in notification.message
+    assert len(fake_event_publisher.published) == 1
+    event = fake_event_publisher.published[0]
+    assert event.name == "stock.low"
+    assert event.payload["sku"] == "A"
 
 
-async def test_reserve_acima_do_limiar_nao_notifica(
-    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+async def test_reserve_acima_do_limiar_nao_publica_evento(
+    client: AsyncClient, fake_event_publisher: _FakeEventPublisher
 ) -> None:
     await client.post("/api/inventory/A/receive", json={"quantity": 10})
     response = await client.post("/api/inventory/A/reserve", json={"quantity": 2})
     assert response.status_code == 200
-    assert fake_notification_channel.sent == []
+    assert fake_event_publisher.published == []

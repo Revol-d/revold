@@ -15,6 +15,7 @@ from core_catalog.domain import (
     VariantNotFound,
 )
 from core_catalog.use_cases import (
+    AddProductImage,
     AddProductVariant,
     CreateCategory,
     CreateProduct,
@@ -216,6 +217,41 @@ class TestUpdateProduct:
     ) -> None:
         with pytest.raises(CategoryNotFound):
             await UpdateProduct(fake_repository).execute("CAM-001", category_slug="nao-existe")
+
+
+class TestAddProductImage:
+    async def test_faz_upload_e_acrescenta_url_as_imagens(
+        self, fake_repository, fake_media_storage
+    ) -> None:
+        original = await GetProduct(fake_repository).execute("CAM-001")
+        original_count = len(original.images)
+
+        updated = await AddProductImage(fake_repository, fake_media_storage).execute(
+            "CAM-001", content=b"conteudo-fake-da-imagem", content_type="image/jpeg", filename="foto.jpg"
+        )
+
+        assert len(updated.images) == original_count + 1
+        new_url = updated.images[-1]
+        assert new_url.startswith("https://fake-storage.test/products/CAM-001/")
+        assert new_url.endswith("-foto.jpg")
+        assert len(fake_media_storage.uploaded) == 1
+
+    async def test_sanitiza_nome_de_arquivo_perigoso(self, fake_repository, fake_media_storage) -> None:
+        """Regressão de segurança: um filename como "../../etc/passwd" não
+        pode virar parte literal da key de armazenamento."""
+        updated = await AddProductImage(fake_repository, fake_media_storage).execute(
+            "CAM-001", content=b"x", content_type="image/png", filename="../../etc/passwd"
+        )
+
+        new_url = updated.images[-1]
+        assert "../" not in new_url
+        assert ".." not in new_url.split("/")[-1] or "_" in new_url
+
+    async def test_produto_inexistente_levanta_not_found(self, fake_repository, fake_media_storage) -> None:
+        with pytest.raises(ProductNotFound):
+            await AddProductImage(fake_repository, fake_media_storage).execute(
+                "NAO-EXISTE", content=b"x", content_type="image/png", filename="a.png"
+            )
 
 
 class TestAddProductVariant:

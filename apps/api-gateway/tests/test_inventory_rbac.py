@@ -6,12 +6,11 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from api_gateway.dependencies import get_inventory_repository, get_notification_channel
+from api_gateway.dependencies import get_event_publisher, get_inventory_repository
 from api_gateway.main import app
 from api_gateway.security import get_current_user
 from core_identity.domain import AuthenticatedUser, Role
 from core_inventory.domain import StockLevel
-from core_notification.domain import Notification
 
 
 class _FakeInventoryRepository:
@@ -25,8 +24,8 @@ class _FakeInventoryRepository:
         self._levels[stock_level.sku] = stock_level
 
 
-class _FakeNotificationChannel:
-    async def send(self, notification: Notification) -> None:
+class _FakeEventPublisher:
+    async def publish(self, event) -> None:
         pass
 
 
@@ -43,7 +42,7 @@ _STAFF_USER = AuthenticatedUser(
 @pytest.fixture(autouse=True)
 def override_dependencies():
     app.dependency_overrides[get_inventory_repository] = lambda: _FakeInventoryRepository()
-    app.dependency_overrides[get_notification_channel] = lambda: _FakeNotificationChannel()
+    app.dependency_overrides[get_event_publisher] = lambda: _FakeEventPublisher()
     yield
     app.dependency_overrides.clear()
 

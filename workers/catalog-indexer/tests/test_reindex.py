@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from catalog_indexer.reindex import reindex_all_products
+from catalog_indexer.reindex import reindex_all_products, reindex_one_product
 from core_ai_assistant.use_cases import IndexProduct
 from core_catalog.domain import Category, Money, Product, ProductVariant
 
@@ -56,3 +56,28 @@ async def test_reindex_all_products_catalogo_vazio_retorna_zero(fake_llm, fake_i
     count = await reindex_all_products(repository, index_product)
 
     assert count == 0
+
+
+async def test_reindex_one_product_indexa_so_o_sku_pedido(fake_llm, fake_index) -> None:
+    products = [_make_product("P1"), _make_product("P2")]
+    repository = _FakeProductRepository(products)
+    index_product = IndexProduct(fake_llm, fake_index)
+
+    ok = await reindex_one_product("P1", repository, index_product)
+
+    assert ok is True
+    embedding = await fake_llm.embed("qualquer coisa")
+    results = await fake_index.search(embedding=embedding, limit=10)
+    assert {p.sku for p in results} == {"P1"}
+
+
+async def test_reindex_one_product_sku_removido_retorna_false_sem_erro(fake_llm, fake_index) -> None:
+    """O evento product.updated pode ser processado depois do produto ter
+    sido removido (corrida esperada entre publicação e consumo
+    assíncronos) — não deve levantar erro."""
+    repository = _FakeProductRepository([])
+    index_product = IndexProduct(fake_llm, fake_index)
+
+    ok = await reindex_one_product("SUMIU", repository, index_product)
+
+    assert ok is False

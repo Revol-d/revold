@@ -14,9 +14,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from api_gateway.dependencies import (
     get_cart_repository,
     get_checkout_handoff,
+    get_event_publisher,
     get_inventory_repository,
     get_low_stock_threshold,
-    get_notification_channel,
+    get_metrics_publisher,
 )
 from api_gateway.orchestration import notify_if_low_stock
 from core_cart.domain import Cart, CartItemNotFound, EmptyCart
@@ -38,11 +39,12 @@ from core_cart.use_cases import (
 )
 from core_communication.domain import CartSummary, CartSummaryLine
 from core_communication.ports import CheckoutHandoff
+from core_events.domain import DomainEvent
+from core_events.ports import EventPublisher
 from core_inventory.domain import InsufficientStock, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
 from core_inventory.use_cases import GetStockLevel, ReleaseStock, ReserveStock
-from core_notification.ports import NotificationChannel
-from core_notification.use_cases import NotifyNewCheckout
+from core_observability.ports import MetricsPublisher
 
 router = APIRouter(prefix="/api/cart", tags=["cart"])
 
@@ -169,8 +171,9 @@ async def remove_item(
 async def _reserve_cart_stock(
     cart: Cart,
     inventory_repository: InventoryRepository,
-    notification_channel: NotificationChannel,
+    event_publisher: EventPublisher,
     low_stock_threshold: int,
+    metrics: MetricsPublisher | None = None,
 ) -> None:
     """Reserva (não baixa) o estoque de cada item do carrinho antes do handoff
     de checkout (ADR-0005: a baixa definitiva só acontece quando a venda é
@@ -193,7 +196,7 @@ async def _reserve_cart_stock(
             except StockLevelNotFound:
                 continue
             reserved.append((item.sku, item.quantity))
-            await notify_if_low_stock(stock, notification_channel, low_stock_threshold)
+            await notify_if_low_stock(stock, event_publisher, low_stock_threshold, metrics)
     except InsufficientStock:
         for sku, quantity in reserved:
             await ReleaseStock(inventory_repository).execute(sku, quantity)
@@ -206,8 +209,9 @@ async def start_checkout(
     repository: CartRepository = Depends(get_cart_repository),
     inventory_repository: InventoryRepository = Depends(get_inventory_repository),
     checkout: CheckoutHandoff = Depends(get_checkout_handoff),
-    notification_channel: NotificationChannel = Depends(get_notification_channel),
+    event_publisher: EventPublisher = Depends(get_event_publisher),
     low_stock_threshold: int = Depends(get_low_stock_threshold),
+    metrics: MetricsPublisher = Depends(get_metrics_publisher),
 ) -> CheckoutHandoffResponseSchema:
     try:
         cart = await GetCartForCheckout(repository).execute(cart_id)
@@ -216,7 +220,7 @@ async def start_checkout(
 
     try:
         await _reserve_cart_stock(
-            cart, inventory_repository, notification_channel, low_stock_threshold
+            cart, inventory_repository, event_publisher, low_stock_threshold, metrics
         )
     except InsufficientStock as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -236,9 +240,17 @@ async def start_checkout(
 
     # Avisa a Nick que um carrinho entrou em checkout — o handoff em si (o
     # link do WhatsApp) ainda depende do cliente abrir e mandar a mensagem;
-    # esta notificação é o que faz a Nick saber que precisa ficar de olho.
-    await NotifyNewCheckout(notification_channel).execute(
-        cart_id=cart_id, summary_text=_summary_to_text(summary)
+    # este evento é o que faz a Nick saber que precisa ficar de olho. Quem
+    # de fato notifica roda assíncrono (ver
+    # workers/event_worker.dispatch.handle_checkout_created, ADR-0013) —
+    # se o canal de notificação falhar, isso não deve derrubar o checkout,
+    # que já reservou estoque de verdade.
+    await event_publisher.publish(
+        DomainEvent(
+            name="checkout.created",
+            payload={"cart_id": cart_id, "summary_text": _summary_to_text(summary)},
+        )
     )
+    metrics.increment("checkout_created_total")
 
     return CheckoutHandoffResponseSchema(handoff_url=url, provider=checkout.provider_name)

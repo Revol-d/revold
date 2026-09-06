@@ -1,6 +1,8 @@
 """Casos de uso do core-catalog. Orquestram a porta ProductRepository."""
 from __future__ import annotations
 
+import re
+import uuid
 from dataclasses import dataclass
 
 from core_catalog.domain import (
@@ -15,7 +17,9 @@ from core_catalog.domain import (
     ProductVariant,
     VariantNotFound,
 )
-from core_catalog.ports import ProductRepository
+from core_catalog.ports import MediaStorage, ProductRepository
+
+_UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
 VALID_SORTS = frozenset({"relevance", "price_asc", "price_desc"})
 
@@ -192,6 +196,34 @@ class UpdateProduct:
         )
         await self._repository.save_product(updated)
         return updated
+
+
+class AddProductImage:
+    """Faz upload de uma imagem (MediaStorage, ADR-0015) e acrescenta a URL
+    resultante à lista de imagens do produto. Diferente de UpdateProduct
+    (que só aceita substituir a lista inteira por URLs já conhecidas, ex.
+    coladas à mão) — este caso de uso é o que atende
+    POST /api/catalog/products/{sku}/images (upload de arquivo de verdade).
+    """
+
+    def __init__(self, repository: ProductRepository, media_storage: MediaStorage) -> None:
+        self._repository = repository
+        self._media_storage = media_storage
+
+    async def execute(
+        self, sku: str, *, content: bytes, content_type: str, filename: str
+    ) -> Product:
+        product = await self._repository.get_product(sku)
+        if product is None:
+            raise ProductNotFound(sku)
+
+        safe_filename = _UNSAFE_FILENAME_CHARS.sub("_", filename) or "imagem"
+        key = f"products/{sku}/{uuid.uuid4().hex}-{safe_filename}"
+        url = await self._media_storage.upload(key=key, content=content, content_type=content_type)
+
+        product.images = [*product.images, url]
+        await self._repository.save_product(product)
+        return product
 
 
 class AddProductVariant:

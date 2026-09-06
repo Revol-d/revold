@@ -18,6 +18,12 @@ Este monorepo segue Domain-Driven Design, Hexagonal Architecture (Ports & Adapte
 | [0010](adr/0010-sessao-via-cookie-httponly-redis.md) | Sessão de autenticação via cookie HttpOnly + Redis |
 | [0011](adr/0011-escopo-do-assistente-de-ia.md) | Escopo do assistente de IA (RAG sobre catálogo + LangGraph) |
 | [0012](adr/0012-estrategia-de-testes-dados-realistas-e-evals.md) | Estratégia de testes — dados realistas, sandbox de serviço externo, e evals de agente de IA |
+| [0013](adr/0013-core-events-e-barramento-de-eventos.md) | core-events e barramento de eventos (Celery/Redis) |
+| [0014](adr/0014-busca-full-text-tsvector.md) | Busca full-text de produtos (tsvector + unaccent) |
+| [0015](adr/0015-media-blob-storage.md) | MediaStorage — upload de imagem de produto (blob storage) |
+| [0016](adr/0016-api-key-rate-limit-webhook-outbound.md) | API key + rate limiter + webhook de saída (API pública/parceiro) |
+| [0017](adr/0017-observabilidade-metricas-prometheus.md) | Observabilidade — métricas (Prometheus/Grafana) |
+| [0018](adr/0018-canal-de-notificacao-email-smtp.md) | Canal de notificação por e-mail (SMTP) |
 
 Toda nova decisão arquitetural relevante (novo core, nova camada, mudança de infraestrutura, troca de provedor externo) deve ganhar um ADR novo antes da implementação, não depois.
 

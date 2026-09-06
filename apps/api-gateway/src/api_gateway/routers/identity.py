@@ -9,19 +9,21 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
-from api_gateway.dependencies import get_identity_provider, get_session_repository
-from api_gateway.security import SESSION_COOKIE_NAME, get_current_user
-from core_identity.domain import AuthenticatedUser
-from core_identity.ports import IdentityProvider, SessionRepository
+from api_gateway.dependencies import get_api_key_auth, get_identity_provider, get_session_repository
+from api_gateway.security import SESSION_COOKIE_NAME, get_current_user, require_any_role
+from core_identity.domain import ApiKeyNotFound, AuthenticatedUser, Role
+from core_identity.ports import ApiKeyAuth, IdentityProvider, SessionRepository
 from core_identity.schemas import (
     AuthenticatedUserSchema,
     CompleteLoginRequestSchema,
+    IssueApiKeyRequestSchema,
+    IssuedApiKeySchema,
     LoginChallengeSchema,
     StartLoginRequestSchema,
 )
-from core_identity.use_cases import CompleteLogin, Logout, StartLogin
+from core_identity.use_cases import CompleteLogin, IssueApiKey, Logout, RevokeApiKey, StartLogin
 
 router = APIRouter(prefix="/api/auth", tags=["identity"])
 
@@ -93,3 +95,30 @@ async def get_me(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AuthenticatedUserSchema:
     return _user_to_schema(user)
+
+
+@router.post("/api-keys", response_model=IssuedApiKeySchema, status_code=201)
+async def issue_api_key(
+    body: IssueApiKeyRequestSchema,
+    api_key_auth: ApiKeyAuth = Depends(get_api_key_auth),
+    _admin: AuthenticatedUser = Depends(require_any_role(Role.ADMIN)),
+) -> IssuedApiKeySchema:
+    """Emite uma API key para um parceiro/integração (ADR-0016) — só ADMIN,
+    diferente dos endpoints administrativos de catálogo/estoque (que também
+    aceitam STAFF): dar acesso de API pública é mais sensível que editar
+    produto. `raw_key` só existe nesta resposta — perdida a partir daqui."""
+    principal, raw_key = await IssueApiKey(api_key_auth).execute(name=body.name)
+    return IssuedApiKeySchema(key_id=principal.key_id, name=principal.name, raw_key=raw_key)
+
+
+@router.delete("/api-keys/{key_id}", status_code=204)
+async def revoke_api_key(
+    key_id: str,
+    api_key_auth: ApiKeyAuth = Depends(get_api_key_auth),
+    _admin: AuthenticatedUser = Depends(require_any_role(Role.ADMIN)),
+) -> Response:
+    try:
+        await RevokeApiKey(api_key_auth).execute(key_id)
+    except ApiKeyNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(status_code=204)

@@ -30,3 +30,20 @@ class LoginChallenge:
 
     authorize_url: str
     state: str
+
+
+@dataclass(frozen=True, slots=True)
+class ApiKeyPrincipal:
+    """Identidade de um chamador de API externo (parceiro/integração),
+    resolvida a partir de uma API key — nunca de sessão de navegador (ver
+    ADR-0016). Só carrega o que a exposição pública de API precisa saber
+    sobre quem está chamando; nunca o segredo em si."""
+
+    key_id: str
+    name: str
+
+
+class ApiKeyNotFound(Exception):
+    def __init__(self, key_id: str) -> None:
+        super().__init__(f"API key não encontrada: {key_id}")
+        self.key_id = key_id

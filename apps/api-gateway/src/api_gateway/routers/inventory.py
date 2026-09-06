@@ -4,15 +4,18 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from api_gateway.dependencies import (
+    get_event_publisher,
     get_inventory_repository,
     get_low_stock_threshold,
-    get_notification_channel,
+    get_metrics_publisher,
 )
 from api_gateway.orchestration import notify_if_low_stock
 from api_gateway.security import require_any_role
+from core_events.ports import EventPublisher
 from core_identity.domain import AuthenticatedUser, Role
 from core_inventory.domain import InsufficientStock, StockLevel, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
+from core_observability.ports import MetricsPublisher
 from core_inventory.schemas import (
     ReceiveStockRequestSchema,
     ReleaseStockRequestSchema,
@@ -25,7 +28,6 @@ from core_inventory.use_cases import (
     ReleaseStock,
     ReserveStock,
 )
-from core_notification.ports import NotificationChannel
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
 
@@ -55,8 +57,9 @@ async def reserve_stock(
     sku: str,
     body: ReserveStockRequestSchema,
     repository: InventoryRepository = Depends(get_inventory_repository),
-    notification_channel: NotificationChannel = Depends(get_notification_channel),
+    event_publisher: EventPublisher = Depends(get_event_publisher),
     low_stock_threshold: int = Depends(get_low_stock_threshold),
+    metrics: MetricsPublisher = Depends(get_metrics_publisher),
     _staff: AuthenticatedUser = Depends(require_any_role(Role.STAFF, Role.ADMIN)),
 ) -> StockLevelSchema:
     # RBAC (ADR-0010): endpoint administrativo — o fluxo de checkout do
@@ -68,7 +71,7 @@ async def reserve_stock(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except InsufficientStock as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    await notify_if_low_stock(stock, notification_channel, low_stock_threshold)
+    await notify_if_low_stock(stock, event_publisher, low_stock_threshold, metrics)
     return _stock_to_schema(stock)
 
 

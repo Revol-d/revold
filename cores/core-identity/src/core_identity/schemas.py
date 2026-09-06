@@ -24,3 +24,13 @@ class StartLoginRequestSchema(BaseModel):
 class CompleteLoginRequestSchema(BaseModel):
     code: str
     state: str
+
+
+class IssueApiKeyRequestSchema(BaseModel):
+    name: str
+
+
+class IssuedApiKeySchema(BaseModel):
+    key_id: str
+    name: str
+    raw_key: str

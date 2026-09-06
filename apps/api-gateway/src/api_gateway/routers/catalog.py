@@ -1,9 +1,9 @@
 """Router HTTP do core-catalog. Fino: só traduz HTTP <-> caso de uso."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
-from api_gateway.dependencies import get_product_repository
+from api_gateway.dependencies import get_event_publisher, get_media_storage, get_product_repository
 from api_gateway.security import require_any_role
 from core_catalog.domain import (
     CategoryHasProducts,
@@ -16,7 +16,7 @@ from core_catalog.domain import (
     ProductVariant,
     VariantNotFound,
 )
-from core_catalog.ports import ProductRepository
+from core_catalog.ports import MediaStorage, ProductRepository
 from core_catalog.schemas import (
     CategorySchema,
     CreateCategoryRequestSchema,
@@ -30,6 +30,7 @@ from core_catalog.schemas import (
     UpdateProductVariantRequestSchema,
 )
 from core_catalog.use_cases import (
+    AddProductImage,
     AddProductVariant,
     CreateCategory,
     CreateProduct,
@@ -42,6 +43,8 @@ from core_catalog.use_cases import (
     UpdateProduct,
     UpdateProductVariant,
 )
+from core_events.domain import DomainEvent
+from core_events.ports import EventPublisher
 from core_identity.domain import AuthenticatedUser
 from core_identity.domain import Role as UserRole
 
@@ -112,6 +115,7 @@ async def create_category(
 async def create_product(
     body: CreateProductRequestSchema,
     repository: ProductRepository = Depends(get_product_repository),
+    event_publisher: EventPublisher = Depends(get_event_publisher),
     _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
 ) -> ProductSchema:
     try:
@@ -136,6 +140,7 @@ async def create_product(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except DuplicateSku as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    await _publish_product_updated(event_publisher, product.sku)
     return _product_to_schema(product)
 
 
@@ -144,6 +149,7 @@ async def update_product(
     sku: str,
     body: UpdateProductRequestSchema,
     repository: ProductRepository = Depends(get_product_repository),
+    event_publisher: EventPublisher = Depends(get_event_publisher),
     _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
 ) -> ProductSchema:
     try:
@@ -169,6 +175,7 @@ async def update_product(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CategoryNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await _publish_product_updated(event_publisher, product.sku)
     return _product_to_schema(product)
 
 
@@ -186,6 +193,44 @@ async def add_product_variant(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except DuplicateVariantSku as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _product_to_schema(product)
+
+
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10MB — generoso pra foto de celular, evita abuso de upload
+_ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+
+@router.post("/products/{sku}/images", response_model=ProductSchema, status_code=201)
+async def add_product_image(
+    sku: str,
+    file: UploadFile = File(...),
+    repository: ProductRepository = Depends(get_product_repository),
+    media_storage: MediaStorage = Depends(get_media_storage),
+    _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
+) -> ProductSchema:
+    """Upload de imagem de verdade (ADR-0015) — diferente de PATCH
+    /products/{sku}, que só aceita substituir a lista de imagens por URLs já
+    conhecidas (coladas à mão)."""
+    if file.content_type not in _ALLOWED_IMAGE_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Tipo de arquivo não suportado: {file.content_type!r}. "
+            f"Use um de: {sorted(_ALLOWED_IMAGE_CONTENT_TYPES)}",
+        )
+    content = await file.read()
+    if len(content) > _MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=422, detail=f"Arquivo maior que o limite de {_MAX_IMAGE_BYTES // (1024 * 1024)}MB"
+        )
+    try:
+        product = await AddProductImage(repository, media_storage).execute(
+            sku,
+            content=content,
+            content_type=file.content_type,
+            filename=file.filename or "imagem",
+        )
+    except ProductNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _product_to_schema(product)
 
 
@@ -250,6 +295,15 @@ async def delete_category(
     except CategoryHasProducts as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return Response(status_code=204)
+
+
+async def _publish_product_updated(event_publisher: EventPublisher, sku: str) -> None:
+    """Publica product.updated depois de criar/editar um produto — o
+    índice vetorial de IA (RAG) reindexa só esse SKU de forma assíncrona
+    (ver workers/event_worker.dispatch.handle_product_updated, ADR-0013),
+    em vez de ficar desatualizado até alguém clicar em "reindexar tudo" no
+    admin."""
+    await event_publisher.publish(DomainEvent(name="product.updated", payload={"sku": sku}))
 
 
 def _product_to_schema(product: Product) -> ProductSchema:

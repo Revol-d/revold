@@ -12,13 +12,13 @@ from httpx import ASGITransport, AsyncClient
 from api_gateway.dependencies import (
     get_cart_repository,
     get_checkout_handoff,
+    get_event_publisher,
     get_inventory_repository,
-    get_notification_channel,
 )
 from api_gateway.main import app
 from core_cart.domain import Cart
+from core_events.domain import DomainEvent
 from core_inventory.domain import StockLevel
-from core_notification.domain import Notification
 
 
 class _FakeCartRepository:
@@ -60,12 +60,12 @@ class _FailingCheckoutHandoff:
         raise ValueError("NICK_WHATSAPP_NUMBER não configurado")
 
 
-class _FakeNotificationChannel:
+class _FakeEventPublisher:
     def __init__(self) -> None:
-        self.sent: list[Notification] = []
+        self.published: list[DomainEvent] = []
 
-    async def send(self, notification: Notification) -> None:
-        self.sent.append(notification)
+    async def publish(self, event: DomainEvent) -> None:
+        self.published.append(event)
 
 
 @pytest.fixture
@@ -74,20 +74,20 @@ def fake_inventory_repository() -> _FakeInventoryRepository:
 
 
 @pytest.fixture
-def fake_notification_channel() -> _FakeNotificationChannel:
-    return _FakeNotificationChannel()
+def fake_event_publisher() -> _FakeEventPublisher:
+    return _FakeEventPublisher()
 
 
 @pytest.fixture(autouse=True)
 def override_dependencies(
     fake_inventory_repository: _FakeInventoryRepository,
-    fake_notification_channel: _FakeNotificationChannel,
+    fake_event_publisher: _FakeEventPublisher,
 ):
     fake_repo = _FakeCartRepository()
     app.dependency_overrides[get_cart_repository] = lambda: fake_repo
     app.dependency_overrides[get_inventory_repository] = lambda: fake_inventory_repository
     app.dependency_overrides[get_checkout_handoff] = lambda: _FakeCheckoutHandoff()
-    app.dependency_overrides[get_notification_channel] = lambda: fake_notification_channel
+    app.dependency_overrides[get_event_publisher] = lambda: fake_event_publisher
     yield
     app.dependency_overrides.clear()
 
@@ -289,36 +289,40 @@ async def test_checkout_libera_reserva_quando_handoff_falha(
     assert stock.quantity_reserved == 0  # reserva foi desfeita, não fica presa
 
 
-async def test_checkout_bem_sucedido_notifica_novo_checkout(
-    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+async def test_checkout_bem_sucedido_publica_evento_checkout_created(
+    client: AsyncClient, fake_event_publisher: _FakeEventPublisher
 ) -> None:
+    """A notificação de verdade pra Nick roda assíncrona, disparada por
+    quem consome esse evento (ver workers/event-worker, ADR-0013) — aqui só
+    verificamos que o api-gateway publicou o evento certo, não que a
+    notificação foi enviada (isso é responsabilidade do worker, testada em
+    workers/event-worker/tests)."""
     await client.post(
         "/api/cart/c1/items",
         json={"sku": "A", "name": "Camiseta", "variant_label": "M", "unit_price": "50", "quantity": 2},
     )
     response = await client.post("/api/cart/c1/checkout")
     assert response.status_code == 200
-    assert len(fake_notification_channel.sent) == 1
-    notification = fake_notification_channel.sent[0]
-    assert notification.event_type == "new_checkout"
-    assert "c1" in notification.message
-    assert "Camiseta" in notification.message
+    checkout_events = [e for e in fake_event_publisher.published if e.name == "checkout.created"]
+    assert len(checkout_events) == 1
+    assert checkout_events[0].payload["cart_id"] == "c1"
+    assert "Camiseta" in checkout_events[0].payload["summary_text"]
 
 
-async def test_checkout_com_erro_nao_notifica(
-    client: AsyncClient, fake_notification_channel: _FakeNotificationChannel
+async def test_checkout_com_erro_nao_publica_evento(
+    client: AsyncClient, fake_event_publisher: _FakeEventPublisher
 ) -> None:
     response = await client.post("/api/cart/c1/checkout")  # carrinho vazio -> 422
     assert response.status_code == 422
-    assert fake_notification_channel.sent == []
+    assert fake_event_publisher.published == []
 
 
-async def test_checkout_reserva_estoque_baixo_notifica_low_stock(
+async def test_checkout_reserva_estoque_baixo_publica_evento_stock_low(
     client: AsyncClient,
     fake_inventory_repository: _FakeInventoryRepository,
-    fake_notification_channel: _FakeNotificationChannel,
+    fake_event_publisher: _FakeEventPublisher,
 ) -> None:
-    # limiar padrão (LOW_STOCK_THRESHOLD) é 5; deixar 2 disponíveis dispara o aviso
+    # limiar padrão (LOW_STOCK_THRESHOLD) é 5; deixar 2 disponíveis dispara o evento
     await fake_inventory_repository.save(StockLevel(sku="A", quantity_on_hand=4))
     await client.post(
         "/api/cart/c1/items",
@@ -326,7 +330,7 @@ async def test_checkout_reserva_estoque_baixo_notifica_low_stock(
     )
     response = await client.post("/api/cart/c1/checkout")
     assert response.status_code == 200
-    event_types = [n.event_type for n in fake_notification_channel.sent]
-    assert "low_stock" in event_types
-    low_stock_notification = next(n for n in fake_notification_channel.sent if n.event_type == "low_stock")
-    assert "A" in low_stock_notification.message
+    event_names = [e.name for e in fake_event_publisher.published]
+    assert "stock.low" in event_names
+    stock_low_event = next(e for e in fake_event_publisher.published if e.name == "stock.low")
+    assert stock_low_event.payload["sku"] == "A"
