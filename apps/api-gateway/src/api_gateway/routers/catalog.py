@@ -52,13 +52,15 @@ async def list_categories(
 @router.get("/products", response_model=ProductPageSchema)
 async def list_products(
     category: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+    sort: str = Query(default="relevance"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=100),
     repository: ProductRepository = Depends(get_product_repository),
 ) -> ProductPageSchema:
     try:
         result = await ListProducts(repository).execute(
-            category_slug=category, page=page, page_size=page_size
+            category_slug=category, search_query=q, sort=sort, page=page, page_size=page_size
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

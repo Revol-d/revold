@@ -39,10 +39,20 @@ class _FakeRepository:
     async def save_category(self, category):
         self._categories[category.slug] = category
 
-    async def list_products(self, *, category_slug, page, page_size):
+    async def list_products(
+        self, *, category_slug, page, page_size, search_query=None, sort="relevance"
+    ):
         items = list(self._products.values())
         if category_slug:
             items = [p for p in items if p.category.slug == category_slug]
+        if search_query:
+            needle = search_query.lower()
+            items = [p for p in items if needle in p.name.lower()]
+        items.sort(key=lambda p: p.sku)
+        if sort == "price_asc":
+            items.sort(key=lambda p: p.price.amount)
+        elif sort == "price_desc":
+            items.sort(key=lambda p: p.price.amount, reverse=True)
         return items, len(items)
 
     async def get_product(self, sku):
@@ -98,6 +108,21 @@ async def test_list_products(client: AsyncClient) -> None:
     body = response.json()
     assert body["total"] == 1
     assert body["items"][0]["sku"] == "CAM-001"
+
+
+async def test_list_products_busca_por_nome(client: AsyncClient) -> None:
+    response = await client.get("/api/catalog/products", params={"q": "básica"})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+
+    response = await client.get("/api/catalog/products", params={"q": "vestido"})
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
+
+
+async def test_list_products_sort_invalido_retorna_422(client: AsyncClient) -> None:
+    response = await client.get("/api/catalog/products", params={"sort": "aleatorio"})
+    assert response.status_code == 422
 
 
 async def test_get_product_not_found(client: AsyncClient) -> None:

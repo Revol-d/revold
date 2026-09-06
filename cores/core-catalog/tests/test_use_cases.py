@@ -49,6 +49,27 @@ class TestListProducts:
         with pytest.raises(ValueError):
             await ListProducts(fake_repository).execute(page_size=1000)
 
+    async def test_busca_por_substring_no_nome_case_insensitive(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(search_query="jeans")
+        assert result.total == 1
+        assert result.items[0].sku == "CAL-001"
+
+    async def test_busca_sem_correspondencia_retorna_vazio(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(search_query="vestido")
+        assert result.total == 0
+
+    async def test_ordena_por_preco_crescente(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(sort="price_asc")
+        assert [p.sku for p in result.items] == ["CAM-001", "CAL-001"]
+
+    async def test_ordena_por_preco_decrescente(self, fake_repository) -> None:
+        result = await ListProducts(fake_repository).execute(sort="price_desc")
+        assert [p.sku for p in result.items] == ["CAL-001", "CAM-001"]
+
+    async def test_sort_invalido_levanta_erro(self, fake_repository) -> None:
+        with pytest.raises(ValueError):
+            await ListProducts(fake_repository).execute(sort="preco_qualquer")
+
 
 class TestGetProduct:
     async def test_retorna_produto_existente(self, fake_repository) -> None:

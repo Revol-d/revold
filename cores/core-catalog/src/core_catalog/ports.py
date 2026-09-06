@@ -20,9 +20,19 @@ class ProductRepository(Protocol):
         ...
 
     async def list_products(
-        self, *, category_slug: str | None, page: int, page_size: int
+        self,
+        *,
+        category_slug: str | None,
+        page: int,
+        page_size: int,
+        search_query: str | None = None,
+        sort: str = "relevance",
     ) -> tuple[list[Product], int]:
-        """Retorna (itens da página, total de itens que casam com o filtro)."""
+        """Retorna (itens da página, total de itens que casam com o filtro).
+
+        search_query filtra por substring no nome (case-insensitive). sort é
+        um de core_catalog.use_cases.VALID_SORTS — "relevance" preserva a
+        ordem natural do repositório."""
         ...
 
     async def get_product(self, sku: str) -> Product | None: ...

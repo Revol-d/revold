@@ -57,7 +57,13 @@ class PostgresProductRepository:
         await self._session.commit()
 
     async def list_products(
-        self, *, category_slug: str | None, page: int, page_size: int
+        self,
+        *,
+        category_slug: str | None,
+        page: int,
+        page_size: int,
+        search_query: str | None = None,
+        sort: str = "relevance",
     ) -> tuple[list[Product], int]:
         query = select(ProductModel).options(
             selectinload(ProductModel.category), selectinload(ProductModel.variants)
@@ -66,6 +72,16 @@ class PostgresProductRepository:
         if category_slug is not None:
             query = query.where(ProductModel.category_slug == category_slug)
             count_query = count_query.where(ProductModel.category_slug == category_slug)
+        if search_query:
+            query = query.where(ProductModel.name.ilike(f"%{search_query}%"))
+            count_query = count_query.where(ProductModel.name.ilike(f"%{search_query}%"))
+
+        if sort == "price_asc":
+            query = query.order_by(ProductModel.price_amount.asc())
+        elif sort == "price_desc":
+            query = query.order_by(ProductModel.price_amount.desc())
+        else:
+            query = query.order_by(ProductModel.sku.asc())
 
         total = (await self._session.execute(count_query)).scalar_one()
         query = query.offset((page - 1) * page_size).limit(page_size)

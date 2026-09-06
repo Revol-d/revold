@@ -1,6 +1,7 @@
 import { PriceTag } from "./PriceTag";
 import { DiscountBadge } from "./DiscountBadge";
 import { RatingStars } from "./RatingStars";
+import { WishlistToggle } from "./WishlistToggle";
 
 export interface ProductCardProps {
   sku: string;
@@ -46,15 +47,12 @@ export function ProductCard({
         <img src={imageUrl} alt={imageAlt} loading="lazy" />
         {discount > 0 && <DiscountBadge percentOff={discount} />}
         {onToggleWishlist && (
-          <button
-            type="button"
+          <WishlistToggle
+            productName={name}
+            isActive={isWishlisted}
+            onToggle={() => onToggleWishlist(sku)}
             className="product-card__wishlist"
-            aria-pressed={isWishlisted}
-            aria-label={isWishlisted ? `Remover ${name} da lista de desejos` : `Adicionar ${name} à lista de desejos`}
-            onClick={() => onToggleWishlist(sku)}
-          >
-            <span aria-hidden="true">{isWishlisted ? "♥" : "♡"}</span>
-          </button>
+          />
         )}
       </div>
       <a href={href} className="product-card__body">

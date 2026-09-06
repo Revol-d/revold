@@ -15,6 +15,8 @@ from core_catalog.domain import (
 )
 from core_catalog.ports import ProductRepository
 
+VALID_SORTS = frozenset({"relevance", "price_asc", "price_desc"})
+
 
 @dataclass(slots=True)
 class ProductPageResult:
@@ -37,14 +39,26 @@ class ListProducts:
         self._repository = repository
 
     async def execute(
-        self, *, category_slug: str | None = None, page: int = 1, page_size: int = 24
+        self,
+        *,
+        category_slug: str | None = None,
+        search_query: str | None = None,
+        sort: str = "relevance",
+        page: int = 1,
+        page_size: int = 24,
     ) -> ProductPageResult:
         if page < 1:
             raise ValueError("page deve ser >= 1")
         if not (1 <= page_size <= 100):
             raise ValueError("page_size deve estar entre 1 e 100")
+        if sort not in VALID_SORTS:
+            raise ValueError(f"sort deve ser um de {sorted(VALID_SORTS)}")
         items, total = await self._repository.list_products(
-            category_slug=category_slug, page=page, page_size=page_size
+            category_slug=category_slug,
+            search_query=search_query,
+            sort=sort,
+            page=page,
+            page_size=page_size,
         )
         return ProductPageResult(items=items, page=page, page_size=page_size, total=total)
 

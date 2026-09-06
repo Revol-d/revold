@@ -29,11 +29,25 @@ class FakeProductRepository:
         self._categories[category.slug] = category
 
     async def list_products(
-        self, *, category_slug: str | None, page: int, page_size: int
+        self,
+        *,
+        category_slug: str | None,
+        page: int,
+        page_size: int,
+        search_query: str | None = None,
+        sort: str = "relevance",
     ) -> tuple[list[Product], int]:
         items = list(self._products.values())
         if category_slug is not None:
             items = [p for p in items if p.category.slug == category_slug]
+        if search_query:
+            needle = search_query.lower()
+            items = [p for p in items if needle in p.name.lower()]
+        items.sort(key=lambda p: p.sku)
+        if sort == "price_asc":
+            items.sort(key=lambda p: p.price.amount)
+        elif sort == "price_desc":
+            items.sort(key=lambda p: p.price.amount, reverse=True)
         total = len(items)
         start = (page - 1) * page_size
         return items[start : start + page_size], total

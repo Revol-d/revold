@@ -1,16 +1,44 @@
-import { Breadcrumb, CategoryHeader, ProductCard } from "@revold/ui";
-import { listProducts } from "@/lib/api";
+import { Breadcrumb, CategoryHeader } from "@revold/ui";
+import type { SortValue } from "@revold/ui";
+import { listCategories, listProducts } from "@/lib/api";
+import { CollectionResults } from "@/components/CollectionResults";
 
 export const dynamic = "force-dynamic";
 
 interface CollectionPageProps {
   params: { slug: string };
-  searchParams: { page?: string };
+  searchParams: { page?: string; sort?: string; q?: string };
 }
+
+const VALID_SORTS: SortValue[] = ["relevance", "price_asc", "price_desc"];
+
+// "all" é um slug reservado do frontend (usado pelo CTA "Ver tudo" da home,
+// ver content/pages/home.ts) — não existe categoria de verdade com esse
+// slug, então aqui ele significa "sem filtro de categoria" em vez de ser
+// repassado ao backend (que devolveria zero resultados).
+const ALL_PRODUCTS_SLUG = "all";
 
 export default async function CollectionPage({ params, searchParams }: CollectionPageProps) {
   const page = Number(searchParams.page ?? "1");
-  const result = await listProducts({ category: params.slug, page, pageSize: 24 });
+  const sort: SortValue = VALID_SORTS.includes(searchParams.sort as SortValue)
+    ? (searchParams.sort as SortValue)
+    : "relevance";
+  const isAll = params.slug === ALL_PRODUCTS_SLUG;
+
+  const [result, categories] = await Promise.all([
+    listProducts({
+      category: isAll ? undefined : params.slug,
+      sort,
+      q: searchParams.q,
+      page,
+      pageSize: 24,
+    }),
+    listCategories(),
+  ]);
+
+  const categoryName = isAll
+    ? "Todos os produtos"
+    : categories.find((c) => c.slug === params.slug)?.name ?? params.slug;
 
   return (
     <main id="main-content">
@@ -18,28 +46,11 @@ export default async function CollectionPage({ params, searchParams }: Collectio
         items={[
           { label: "Home", href: "/" },
           { label: "Coleções", href: "/collections" },
-          { label: params.slug },
+          { label: categoryName },
         ]}
       />
-      <CategoryHeader title={params.slug} resultCount={result.total} />
-      <div
-        className="product-grid"
-        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1.5rem" }}
-      >
-        {result.items.map((product) => (
-          <ProductCard
-            key={product.sku}
-            sku={product.sku}
-            name={product.name}
-            imageUrl={product.images[0] ?? ""}
-            imageAlt={product.name}
-            price={product.price.amount}
-            originalPrice={product.original_price?.amount}
-            currency={product.price.currency}
-            href={`/products/${product.sku}`}
-          />
-        ))}
-      </div>
+      <CategoryHeader title={categoryName} resultCount={result.total} />
+      <CollectionResults products={result.items} sort={sort} />
     </main>
   );
 }
