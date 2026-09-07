@@ -23,6 +23,7 @@ packages = [
   { include = "event_worker", from = "workers/event-worker/src" },
   { include = "revold_testing", from = "tools/testing/src" },
   { include = "core_ai_assistant_evals", from = "cores/core-ai-assistant/evals" },
+  { include = "revold_seed", from = "tools/seed/src" },
 ]
 
 [tool.poetry.dependencies]

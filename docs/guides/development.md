@@ -7,7 +7,8 @@ Por decisão de arquitetura (ADR-0009), todo o desenvolvimento local roda em con
 1. `cp .env.example .env`
 2. `make dev` — builda as imagens (primeira vez) e sobe Postgres, Redis, api-gateway (com reload), `worker` (consumidor de eventos, ADR-0013), Prometheus, Grafana e storefront (com hot reload) via `docker compose`.
 3. `make migrate` (em outro terminal, com os serviços já de pé) — aplica as migrações Alembic dentro do container do api-gateway.
-4. Storefront em http://localhost:3000, API em http://localhost:8000 (docs automáticas em `/docs`, geradas pelo FastAPI), admin-dashboard em http://localhost:3001, Prometheus em http://localhost:9090, Grafana em http://localhost:3002 (login anônimo habilitado, só em dev).
+4. `make seed` — popula um banco vazio com um catálogo semântico (6 categorias, 21 produtos, estoque, configuração da loja). Sem este passo o storefront sobe, mas toda página de listagem fica vazia — não dá pra avaliar como o site fica de verdade (ver ADR-0022). Seguro rodar de novo a qualquer momento: nunca duplica nem sobrescreve dado já existente.
+5. Storefront em http://localhost:3000, API em http://localhost:8000 (docs automáticas em `/docs`, geradas pelo FastAPI), admin-dashboard em http://localhost:3001, Prometheus em http://localhost:9090, Grafana em http://localhost:3002 (login anônimo habilitado, só em dev).
 
 ## Convenção de portas e adapters
 Todo core define portas (interfaces Python, `Protocol` ou ABC) para qualquer dependência externa (banco, fila, serviço de terceiro). Adapters implementam essas portas em `adapters/`. Um adapter de desenvolvimento ("fake"/"sandbox") deve existir para qualquer integração externa que ainda não tenha credencial real disponível (ex.: `core-identity` antes de ter app registration do Azure AD/Google, checkout antes da WhatsApp Business API oficial) — isso permite construir e testar o sistema inteiro mesmo com liberações externas pendentes. A troca entre adapter de desenvolvimento e adapter real é sempre configuração (variável de ambiente), nunca mudança de código no core.
@@ -48,6 +49,11 @@ Ver `claude/planejamento-leafs-e-adaptadores.md` (Project) para o plano original
 ## Dashboards Grafana (ADR-0017)
 
 `http://localhost:3002` já abre com o dashboard **"Revold — Visão Geral"** carregado — datasource Prometheus e dashboard são provisionados como código (`docker/grafana/provisioning/`), sem passo manual de configuração. Três seções: checkouts criados (taxa/min + total), alertas de estoque baixo (taxa/min + total), e API (requisições por status, taxa de erro 5xx, latência p50/p95/p99). Para adicionar um painel novo, editar `docker/grafana/provisioning/dashboards/json/revold-overview.json` (recarregado a cada 30s) em vez de só ajustar pela UI — a UI permite editar (`allowUiUpdates: true`), mas o arquivo do repositório é a fonte de verdade e sobrescreve no próximo reload.
+
+## Seed semântico e módulo `revold_seed` (ADR-0022)
+`make seed` (`docker compose run --rm api-gateway poetry run python -m revold_seed`) é o processo padrão pra popular um banco vazio com dado apresentável — 6 categorias, 21 produtos com variantes/preço/descrição em português, estoque (incluindo casos propositais de "esgotado" e "estoque baixo") e a configuração da loja. Nunca dado aleatório de Faker (isso é `tools/testing`, para teste automatizado) — é conteúdo escrito à mão, pensado pra ser olhado por um humano avaliando o site ou apresentado pra Nick. Idempotente: só cria o que ainda não existe, nunca sobrescreve edição real feita no admin.
+
+Cada core dono de dado de demonstração expõe suas próprias constantes em `cores/core-x/src/core_x/seed.py` (hoje: `core_catalog`, `core_store_settings`) — `tools/seed/src/revold_seed/runner.py` só orquestra a ordem entre eles e persiste através dos repositórios reais, nunca conhece o conteúdo em si. Pra dar seed a um core novo no futuro: escrever o `seed.py` dele nesse mesmo formato e registrar a chamada em `runner.py` — ver ADR-0022 para o raciocínio completo.
 
 ## Validando localmente como o CI de verdade valida (ADR-0021)
 

@@ -1,4 +1,4 @@
-.PHONY: dev setup clean test test-unit test-integration test-contract test-eval test-e2e coverage lint format build migrate ci-local
+.PHONY: dev setup clean test test-unit test-integration test-contract test-eval test-e2e coverage lint format build migrate ci-local seed
 
 # Convenção do projeto: todo comando roda dentro de container Docker, nunca
 # direto na máquina de quem desenvolve — evita "funciona na minha máquina"
@@ -45,6 +45,18 @@ format:
 
 migrate:
 	docker compose run --rm api-gateway poetry run alembic upgrade head
+
+# Popula um banco vazio (ou recém-migrado) com um catálogo semântico —
+# categorias/produtos/estoque/configuração da loja escritos à mão, coerentes
+# o bastante pra apresentar pra Nick (ADR-0022) — nunca dado aleatório de
+# Faker (isso é `tools/testing`, feito pra teste automatizado, não demo).
+# Idempotente: rodar de novo não duplica nem sobrescreve o que já existe
+# (dado de exemplo, ou já editado de verdade pela Nick no admin). Rodar
+# sempre depois de `make migrate` num banco novo — sem isto, dá pra
+# avaliar se o CI/build está passando, mas não dá pra avaliar como o site
+# fica de verdade, porque toda página de listagem estará vazia.
+seed:
+	docker compose run --rm api-gateway poetry run python -m revold_seed
 
 build:
 	docker build --target runtime -f apps/api-gateway/Dockerfile -t revold/api-gateway .
