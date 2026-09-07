@@ -55,8 +55,15 @@ migrate:
 # sempre depois de `make migrate` num banco novo — sem isto, dá pra
 # avaliar se o CI/build está passando, mas não dá pra avaliar como o site
 # fica de verdade, porque toda página de listagem estará vazia.
+# --build: sem isto, "docker compose run" reaproveita a imagem já
+# existente mesmo que pyproject.toml/tools/ tenham mudado desde o último
+# build (ex.: o próprio módulo revold_seed sendo adicionado agora) — achado
+# rodando de verdade pela primeira vez ("No module named revold_seed" numa
+# imagem construída antes deste commit). Com --build, o Docker só refaz as
+# camadas que de fato mudaram (cache normal), então o custo extra é baixo
+# quando nada mudou.
 seed:
-	docker compose run --rm api-gateway poetry run python -m revold_seed
+	docker compose run --build --rm api-gateway poetry run python -m revold_seed
 
 build:
 	docker build --target runtime -f apps/api-gateway/Dockerfile -t revold/api-gateway .
