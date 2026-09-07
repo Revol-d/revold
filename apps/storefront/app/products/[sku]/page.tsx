@@ -26,8 +26,18 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     throw error;
   }
 
-  const relatedPage = await listProducts({ category: product.category.slug, pageSize: 9 });
-  const related = relatedPage.items.filter((p) => p.sku !== product.sku).slice(0, 8);
+  // Produtos relacionados são complementares, não o motivo de a página
+  // existir — se o catálogo falhar só nesta segunda chamada, o produto
+  // principal (já carregado acima) continua exibido normalmente, só sem
+  // "combine com"/"você também pode gostar" (mesmo princípio de
+  // listCategories() em layout.tsx).
+  let related: Awaited<ReturnType<typeof listProducts>>["items"] = [];
+  try {
+    const relatedPage = await listProducts({ category: product.category.slug, pageSize: 9 });
+    related = relatedPage.items.filter((p) => p.sku !== product.sku).slice(0, 8);
+  } catch {
+    related = [];
+  }
   const crossSellCandidates = related
     .filter((p) => p.variants.length === 0 || p.variants.some((v) => v.in_stock))
     .slice(0, 3);

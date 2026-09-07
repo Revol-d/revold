@@ -28,11 +28,20 @@ async function ProductGridSection({
   categorySlug?: string;
   limit: number;
 }) {
-  const page = await listProducts({ category: categorySlug, pageSize: limit });
+  let items: Awaited<ReturnType<typeof listProducts>>["items"];
+  try {
+    items = (await listProducts({ category: categorySlug, pageSize: limit })).items;
+  } catch {
+    // Mesmo princípio de listCategories() em layout.tsx: se o catálogo
+    // estiver fora do ar, esta seção específica da home some em vez de
+    // derrubar a página inteira (hero banner, outras seções, header e
+    // footer continuam renderizando normal).
+    return null;
+  }
   return (
     <section className="product-grid-section">
       {title && <h2>{title}</h2>}
-      <ProductGrid products={page.items} />
+      <ProductGrid products={items} />
     </section>
   );
 }
