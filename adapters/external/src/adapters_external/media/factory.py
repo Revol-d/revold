@@ -7,12 +7,21 @@ Mesmo padrão de adapters_external.ai.factory / adapters_external.identity.facto
 from __future__ import annotations
 
 import os
+import tempfile
+from pathlib import Path
 
 from core_catalog.ports import MediaStorage
 
 from adapters_external.media.local_filesystem_storage import LocalFilesystemStorage
 
-_DEFAULT_LOCAL_DIR = "/app/media"
+# Mesmo racional do default em api_gateway.main: "/app" só existe dentro do
+# container (WORKDIR do Dockerfile) — fora dele (CI do GitHub Actions,
+# `poetry run pytest` direto na máquina de quem desenvolve) não há permissão
+# pra criar diretório na raiz do sistema de arquivos. Docker/produção
+# continuam setando MEDIA_STORAGE_LOCAL_DIR=/app/media explicitamente
+# (docker-compose.yml) — este é só o fallback pra quando a variável não
+# está configurada.
+_DEFAULT_LOCAL_DIR = str(Path(tempfile.gettempdir()) / "revold-media")
 
 
 def get_media_storage() -> MediaStorage:

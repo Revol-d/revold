@@ -49,5 +49,15 @@ Ver `claude/planejamento-leafs-e-adaptadores.md` (Project) para o plano original
 
 `http://localhost:3002` já abre com o dashboard **"Revold — Visão Geral"** carregado — datasource Prometheus e dashboard são provisionados como código (`docker/grafana/provisioning/`), sem passo manual de configuração. Três seções: checkouts criados (taxa/min + total), alertas de estoque baixo (taxa/min + total), e API (requisições por status, taxa de erro 5xx, latência p50/p95/p99). Para adicionar um painel novo, editar `docker/grafana/provisioning/dashboards/json/revold-overview.json` (recarregado a cada 30s) em vez de só ajustar pela UI — a UI permite editar (`allowUiUpdates: true`), mas o arquivo do repositório é a fonte de verdade e sobrescreve no próximo reload.
 
+## Validando localmente como o CI de verdade valida (ADR-0021)
+
+`make test`/`make lint` rodam dentro do container da própria aplicação (`docker compose run --rm api-gateway ...`) — ótimo pra validar a aplicação como ela roda em produção, mas **não** é a mesma coisa que o job do GitHub Actions (`.github/workflows/ci.yml`), que roda `poetry install`/`poetry run pytest`/`pnpm install`/`pnpm -r lint` direto no runner (`ubuntu-latest`, sem Docker, sem `.env`, usuário sem privilégio de root). Essa diferença deixou passar despercebido, até o primeiro push real disparar o CI, um caminho de arquivo hardcoded que só existia dentro do container (`/app/media`) e uma dependência de lint resolvida só por acidente de hoisting do pnpm — ver ADR-0021 pros dois casos reais.
+
+Pra reproduzir localmente as condições reais do CI antes de dar push:
+1. Instalar o [`act`](https://github.com/nektos/act) (usa o Docker que você já tem por causa da ADR-0009 — não precisa de mais nada).
+2. `make ci-local` — roda os dois jobs de `ci.yml` (`python`, `node`) exatamente como o GitHub Actions os executa, incluindo o service container do Postgres. A configuração em `.actrc` já usa uma imagem de runner leve (`catthehacker/ubuntu:act-latest`) em vez da imagem `-full` (dezenas de GB).
+
+`act` não é 100% idêntico ao runner hospedado da GitHub — é uma aproximação suficiente pra pegar bug de "suposição de ambiente"/"dependência resolvida por acidente" antes do push, não uma garantia absoluta de paridade.
+
 ## Convenção de commits
 `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:` — branch a partir de `develop`, PR com quality gates locais rodando antes de abrir.

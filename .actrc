@@ -1,0 +1,10 @@
+# Configuração do `act` (nektos/act) — roda .github/workflows/ci.yml
+# localmente em containers Docker que emulam o runner do GitHub Actions,
+# em vez do container da própria aplicação (ver ADR-0021: os dois não são
+# a mesma coisa, e essa diferença é exatamente o que deixou dois bugs
+# passarem despercebidos até o primeiro push real disparar o CI).
+#
+# Imagem "medium" do catthehacker (~500MB) em vez da imagem "-full"
+# (dezenas de GB) que o act usaria por padrão — suficiente pra rodar
+# poetry/pnpm/node, que é tudo que os jobs deste repositório precisam.
+-P ubuntu-latest=catthehacker/ubuntu:act-latest

@@ -7,6 +7,7 @@ conforme forem implementados.
 from __future__ import annotations
 
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -51,7 +52,25 @@ app.include_router(store_settings_router)
 # Serve os arquivos gravados por LocalFilesystemStorage (ADR-0015, adapter
 # de dev de core_catalog.ports.MediaStorage) — sem efeito quando
 # MEDIA_STORAGE_PROVIDER=azure-blob (o diretório simplesmente fica vazio).
-_media_dir = Path(os.environ.get("MEDIA_STORAGE_LOCAL_DIR", "/app/media"))
+#
+# O default (sem MEDIA_STORAGE_LOCAL_DIR configurado) NÃO pode ser
+# "/app/media" — esse caminho só existe porque o Dockerfile do
+# api-gateway usa WORKDIR /app; fora do container (`poetry run pytest`
+# direto, seja no CI do GitHub Actions ou na máquina de quem desenvolve)
+# não há permissão pra criar um diretório na raiz do sistema de arquivos.
+# Isso ficou invisível localmente porque ADR-0009 só previa rodar dentro
+# do Docker — mas o job Python do CI (.github/workflows/ci.yml) roda
+# `poetry install`/`pytest` direto no runner do GitHub Actions, sem
+# Docker nenhum, e quebrou a importação de api_gateway.main (e portanto
+# a coleta de todo teste de rota) com PermissionError: [Errno 13]
+# Permission denied: '/app'. tempfile.gettempdir() é gravável em
+# qualquer ambiente (container, CI, máquina local), então vira o
+# fallback seguro — em Docker/produção, MEDIA_STORAGE_LOCAL_DIR=/app/media
+# continua sendo setado explicitamente (ver docker-compose.yml) e este
+# default nunca entra em jogo.
+_media_dir = Path(
+    os.environ.get("MEDIA_STORAGE_LOCAL_DIR", str(Path(tempfile.gettempdir()) / "revold-media"))
+)
 _media_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=str(_media_dir)), name="media")
 
