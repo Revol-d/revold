@@ -19,6 +19,19 @@ COPY cores ./cores
 COPY adapters ./adapters
 COPY workers ./workers
 COPY apps/api-gateway ./apps/api-gateway
+# tools/testing (pacote revold_testing, ADR-0012) precisa estar aqui antes
+# do "poetry install" — pyproject.toml declara "revold_testing" em
+# [tool.poetry.packages] (usado pelos testes de fábrica de dados em
+# cores/*/tests/), e "poetry install" empacota TODO pacote declarado ali
+# ao instalar "o projeto atual", mesmo com --only main — sem esta linha,
+# a instalação falhava com "tools/testing/src/revold_testing does not
+# contain any element" (a pasta simplesmente não existia neste contexto
+# de build, que só copia cores/adapters/workers/apps/api-gateway). Só
+# achado ao rodar `make dev` de verdade pela primeira vez desde que
+# revold_testing foi adicionado ao pyproject.toml — nem o CI (que faz
+# checkout do repositório inteiro, não um COPY seletivo) nem este build
+# Docker específico tinham sido exercitados juntos até agora.
+COPY tools ./tools
 
 RUN poetry install --only main
 
