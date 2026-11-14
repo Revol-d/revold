@@ -38,7 +38,8 @@ services:
     # env_file carrega tudo que o .env (copiado de .env.example, ver
     # "Primeiros passos" do guia de desenvolvimento) configura e que NÃO
     # está hardcoded em `environment:` abaixo — NICK_WHATSAPP_NUMBER,
-    # SESSION_COOKIE_SECURE, SMTP_*, AZURE_*, GOOGLE_*, WEBHOOK_URLS etc.
+    # SESSION_COOKIE_SECURE, SMTP_*, AZURE_*, GOOGLE_*, WEBHOOK_URLS,
+    # PAYMENT_PROVIDER/MERCADO_PAGO_*, WHATSAPP_BUSINESS_* etc.
     # Sem isso, nenhuma dessas variáveis chegava ao container (achado ao
     # implementar o primeiro teste E2E via browser real, ADR-0020: sem
     # NICK_WHATSAPP_NUMBER, todo checkout falhava; com o cookie de sessão
@@ -46,7 +47,14 @@ services:
     # cookie, quebrando login pelo storefront/admin-dashboard reais).
     # `environment:` abaixo continua tendo prioridade sobre o `.env` para
     # as mesmas chaves (Compose aplica env_file primeiro, depois
-    # environment).
+    # environment) — por isso NOTIFICATION_PROVIDER não está mais fixado
+    # aqui embaixo (ver ADR-0025): estava hardcoded em "logging", o que
+    # calava silenciosamente qualquer `NOTIFICATION_PROVIDER=smtp` ou
+    # `=whatsapp-business` posto no `.env` — ninguém tinha percebido
+    # porque SMTP (ADR-0018) nunca tinha sido testado via `make dev` de
+    # verdade. PAYMENT_PROVIDER (ADR-0024) e CHECKOUT_PROVIDER continuam
+    # fixos abaixo de propósito (nenhum dos dois tem alternativa real
+    # ainda ativada por padrão fora de dev).
     env_file:
       - .env
     environment:
@@ -56,7 +64,6 @@ services:
       AUTH_PROVIDER: dev
       CHECKOUT_PROVIDER: whatsapp-clicktochat
       EVENT_PUBLISHER: celery
-      NOTIFICATION_PROVIDER: logging
       MEDIA_STORAGE_PROVIDER: local
       MEDIA_STORAGE_LOCAL_DIR: /app/media
       MEDIA_STORAGE_LOCAL_BASE_URL: http://localhost:8000/media
@@ -93,14 +100,18 @@ services:
     restart: unless-stopped
     command: ["poetry", "run", "celery", "-A", "event_worker.celery_app", "worker", "--loglevel=info"]
     # Mesmo racional do api-gateway acima: SMTP_*/NICK_NOTIFICATION_EMAIL
-    # (canal de e-mail, ADR-0018) só chegam aqui via .env.
+    # (canal de e-mail, ADR-0018) e WHATSAPP_BUSINESS_*/NICK_WHATSAPP_NUMBER
+    # (ADR-0025) só chegam aqui via .env — é este serviço, não o
+    # api-gateway, que de fato despacha as notificações (ver
+    # workers/event-worker/src/event_worker/celery_app.py). Mesma correção
+    # do api-gateway acima: NOTIFICATION_PROVIDER não fica mais hardcoded
+    # aqui, senão o `.env` nunca teria efeito.
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://revold:revold_dev_only@postgres:5432/revold
       REDIS_URL: redis://redis:6379/0
       LLM_PROVIDER: dev
-      NOTIFICATION_PROVIDER: logging
       WEBHOOK_SENDER_PROVIDER: logging
       WEBHOOK_URLS: ""
     volumes:

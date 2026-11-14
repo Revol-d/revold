@@ -45,3 +45,4 @@ class UpdateQuantityRequestSchema(BaseModel):
 class CheckoutHandoffResponseSchema(BaseModel):
     handoff_url: str
     provider: str
+    order_id: str

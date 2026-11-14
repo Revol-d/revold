@@ -15,11 +15,13 @@ from api_gateway.dependencies import (
     get_event_publisher,
     get_inventory_repository,
     get_low_stock_threshold,
+    get_order_repository,
 )
 from api_gateway.main import app
 from core_cart.domain import Cart
 from core_events.domain import DomainEvent
 from core_inventory.domain import StockLevel
+from core_orders.domain import Order, PaymentStatus
 
 
 class _FakeCartRepository:
@@ -69,6 +71,23 @@ class _FakeEventPublisher:
         self.published.append(event)
 
 
+class _FakeOrderRepository:
+    def __init__(self) -> None:
+        self._orders: dict[str, Order] = {}
+
+    async def get(self, order_id: str):
+        return self._orders.get(order_id)
+
+    async def save(self, order: Order) -> None:
+        self._orders[order.order_id] = order
+
+    async def list(self, *, payment_status: PaymentStatus | None, page: int, page_size: int):
+        matching = [
+            o for o in self._orders.values() if payment_status is None or o.payment_status == payment_status
+        ]
+        return matching, len(matching)
+
+
 @pytest.fixture
 def fake_inventory_repository() -> _FakeInventoryRepository:
     return _FakeInventoryRepository()
@@ -79,16 +98,23 @@ def fake_event_publisher() -> _FakeEventPublisher:
     return _FakeEventPublisher()
 
 
+@pytest.fixture
+def fake_order_repository() -> _FakeOrderRepository:
+    return _FakeOrderRepository()
+
+
 @pytest.fixture(autouse=True)
 def override_dependencies(
     fake_inventory_repository: _FakeInventoryRepository,
     fake_event_publisher: _FakeEventPublisher,
+    fake_order_repository: _FakeOrderRepository,
 ):
     fake_repo = _FakeCartRepository()
     app.dependency_overrides[get_cart_repository] = lambda: fake_repo
     app.dependency_overrides[get_inventory_repository] = lambda: fake_inventory_repository
     app.dependency_overrides[get_checkout_handoff] = lambda: _FakeCheckoutHandoff()
     app.dependency_overrides[get_event_publisher] = lambda: fake_event_publisher
+    app.dependency_overrides[get_order_repository] = lambda: fake_order_repository
     # get_low_stock_threshold agora lê core-store-settings via Postgres
     # (ADR-0019) — sobrescrito aqui com o mesmo valor padrão de antes (5)
     # para não fazer este teste de unidade abrir uma sessão de banco de
@@ -204,6 +230,24 @@ async def test_checkout_com_itens(client: AsyncClient) -> None:
     body = response.json()
     assert body["provider"] == "fake"
     assert "100" in body["handoff_url"]
+    assert body["order_id"]
+
+
+async def test_checkout_cria_pedido_com_as_linhas_do_carrinho(
+    client: AsyncClient, fake_order_repository: _FakeOrderRepository
+) -> None:
+    await client.post(
+        "/api/cart/c1/items",
+        json={"sku": "A", "name": "Camiseta", "variant_label": "M", "unit_price": "50", "quantity": 2},
+    )
+    response = await client.post("/api/cart/c1/checkout")
+    order_id = response.json()["order_id"]
+
+    order = await fake_order_repository.get(order_id)
+    assert order is not None
+    assert order.cart_id == "c1"
+    assert order.lines[0].sku == "A"
+    assert order.payment_status == PaymentStatus.PENDING
 
 
 async def test_clear_cart(client: AsyncClient) -> None:

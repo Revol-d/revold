@@ -86,6 +86,33 @@ export interface UpdateStoreSettingsInput {
   low_stock_threshold?: number;
 }
 
+export interface OrderLine {
+  sku: string;
+  product_name: string;
+  variant_label: string;
+  unit_price: string;
+  quantity: number;
+  subtotal: string;
+}
+
+export interface Order {
+  order_id: string;
+  cart_id: string;
+  lines: OrderLine[];
+  total: string;
+  currency: string;
+  payment_status: "pending" | "paid" | "cancelled";
+  fulfillment_status: "pending" | "shipped" | "delivered";
+  created_at: string;
+}
+
+export interface OrderPage {
+  items: Order[];
+  page: number;
+  page_size: number;
+  total: number;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -254,5 +281,38 @@ export function updateStoreSettings(input: UpdateStoreSettingsInput): Promise<St
   return apiFetch<StoreSettings>("/api/store-settings", {
     method: "PUT",
     body: JSON.stringify(input),
+  });
+}
+
+export function listOrders(paymentStatus?: string): Promise<OrderPage> {
+  const query = paymentStatus ? `?payment_status=${encodeURIComponent(paymentStatus)}` : "";
+  return apiFetch<OrderPage>(`/api/orders${query}`);
+}
+
+export function markOrderPaid(orderId: string): Promise<Order> {
+  return apiFetch<Order>(`/api/orders/${encodeURIComponent(orderId)}/payment-status`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "mark_paid" }),
+  });
+}
+
+export function cancelOrder(orderId: string): Promise<Order> {
+  return apiFetch<Order>(`/api/orders/${encodeURIComponent(orderId)}/payment-status`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "cancel" }),
+  });
+}
+
+export function markOrderShipped(orderId: string): Promise<Order> {
+  return apiFetch<Order>(`/api/orders/${encodeURIComponent(orderId)}/fulfillment-status`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "mark_shipped" }),
+  });
+}
+
+export function markOrderDelivered(orderId: string): Promise<Order> {
+  return apiFetch<Order>(`/api/orders/${encodeURIComponent(orderId)}/fulfillment-status`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "mark_delivered" }),
   });
 }

@@ -17,6 +17,7 @@ from adapters_external.ai.factory import get_llm_provider as _get_llm_provider
 from adapters_external.checkout.whatsapp_clicktochat import WhatsAppClickToChatCheckout
 from adapters_external.identity.factory import get_identity_provider as _get_identity_provider
 from adapters_external.media.factory import get_media_storage as _get_media_storage
+from adapters_external.payments.factory import get_payment_gateway as _get_payment_gateway
 from adapters_external.notification.logging_channel import LoggingNotificationChannel
 from adapters_external.observability.prometheus_metrics_publisher import (
     PrometheusMetricsPublisher,
@@ -30,6 +31,8 @@ from adapters_persistence.identity.postgres_api_key_auth import PostgresApiKeyAu
 from adapters_persistence.identity.redis_rate_limiter import RedisRateLimiter
 from adapters_persistence.identity.redis_session_repository import RedisSessionRepository
 from adapters_persistence.inventory.repository import PostgresInventoryRepository
+from adapters_persistence.orders.repository import PostgresOrderRepository
+from adapters_persistence.payments.repository import PostgresChargeRepository
 from adapters_persistence.redis_client import make_redis_client
 from adapters_persistence.store_settings.repository import PostgresStoreSettingsRepository
 from core_ai_assistant.ports import LLMProvider, ProductIndex
@@ -41,6 +44,8 @@ from core_identity.ports import ApiKeyAuth, IdentityProvider, RateLimiter, Sessi
 from core_inventory.ports import InventoryRepository
 from core_notification.ports import NotificationChannel
 from core_observability.ports import MetricsPublisher
+from core_orders.ports import OrderRepository
+from core_payments.ports import ChargeRepository, PaymentGateway
 from core_store_settings.ports import StoreSettingsRepository
 
 _engine = make_engine()
@@ -111,6 +116,28 @@ def get_notification_channel() -> NotificationChannel:
     # WhatsApp Business API ou e-mail real é só mudar o que esta função
     # retorna; a porta NotificationChannel não muda.
     return _notification_channel
+
+
+async def get_order_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> OrderRepository:
+    # Sempre Postgres (ADR-0023) — mesmo raciocínio de get_api_key_auth:
+    # não há "provedor de nuvem" a trocar por env var, pedido é sempre um
+    # dado nosso.
+    return PostgresOrderRepository(session)
+
+
+async def get_charge_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> ChargeRepository:
+    # Sempre Postgres (ADR-0024) — mesmo raciocínio de get_order_repository.
+    return PostgresChargeRepository(session)
+
+
+def get_payment_gateway() -> PaymentGateway:
+    # Seleciona fake/mercado_pago via PAYMENT_PROVIDER (ver
+    # adapters_external.payments.factory e ADR-0024).
+    return _get_payment_gateway()
 
 
 async def get_store_settings_repository(

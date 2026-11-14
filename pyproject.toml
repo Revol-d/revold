@@ -15,6 +15,8 @@ packages = [
   { include = "core_events", from = "cores/core-events/src" },
   { include = "core_observability", from = "cores/core-observability/src" },
   { include = "core_store_settings", from = "cores/core-store-settings/src" },
+  { include = "core_orders", from = "cores/core-orders/src" },
+  { include = "core_payments", from = "cores/core-payments/src" },
   { include = "adapters_persistence", from = "adapters/persistence/src" },
   { include = "adapters_external", from = "adapters/external/src" },
   { include = "adapters_messaging", from = "adapters/messaging/src" },

@@ -40,4 +40,24 @@ def get_notification_channel() -> NotificationChannel:
             password=os.environ.get("SMTP_PASSWORD"),
             use_tls=os.environ.get("SMTP_USE_TLS", "true").lower() == "true",
         )
+    if provider == "whatsapp-business":
+        from adapters_external.notification.whatsapp_business_channel import (
+            WhatsAppBusinessNotificationChannel,
+        )
+
+        access_token = os.environ.get("WHATSAPP_BUSINESS_ACCESS_TOKEN")
+        phone_number_id = os.environ.get("WHATSAPP_BUSINESS_PHONE_NUMBER_ID")
+        recipient_number = os.environ.get("NICK_WHATSAPP_NUMBER")
+        if not (access_token and phone_number_id and recipient_number):
+            raise NotImplementedError(
+                "NOTIFICATION_PROVIDER=whatsapp-business requer "
+                "WHATSAPP_BUSINESS_ACCESS_TOKEN, WHATSAPP_BUSINESS_PHONE_NUMBER_ID e "
+                "NICK_WHATSAPP_NUMBER configurados (ver .env.example e ADR-0025)."
+            )
+        return WhatsAppBusinessNotificationChannel(
+            access_token=access_token,
+            phone_number_id=phone_number_id,
+            recipient_number=recipient_number,
+            template_name=os.environ.get("WHATSAPP_BUSINESS_TEMPLATE_NAME"),
+        )
     raise ValueError(f"NOTIFICATION_PROVIDER desconhecido: {provider!r}")

@@ -120,6 +120,9 @@ export default function EstoquePage() {
           )}
         </div>
         <div className="flex items-center gap-4">
+          <a href="/pedidos" className="text-sm underline">
+            Pedidos
+          </a>
           <a href="/produtos/novo" className="text-sm underline">
             Novo produto
           </a>

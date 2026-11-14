@@ -22,6 +22,9 @@ from api_gateway.routers.cart import router as cart_router
 from api_gateway.routers.catalog import router as catalog_router
 from api_gateway.routers.identity import router as identity_router
 from api_gateway.routers.inventory import router as inventory_router
+from api_gateway.routers.orders import router as orders_router
+from api_gateway.routers.payments import router as payments_router
+from api_gateway.routers.payments import webhook_router as payments_webhook_router
 from api_gateway.routers.public_api import router as public_api_router
 from api_gateway.routers.store_settings import router as store_settings_router
 
@@ -48,6 +51,9 @@ app.include_router(inventory_router)
 app.include_router(assistant_router)
 app.include_router(public_api_router)
 app.include_router(store_settings_router)
+app.include_router(orders_router)
+app.include_router(payments_router)
+app.include_router(payments_webhook_router)
 
 # Serve os arquivos gravados por LocalFilesystemStorage (ADR-0015, adapter
 # de dev de core_catalog.ports.MediaStorage) — sem efeito quando

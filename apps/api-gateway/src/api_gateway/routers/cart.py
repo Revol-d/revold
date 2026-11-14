@@ -18,6 +18,7 @@ from api_gateway.dependencies import (
     get_inventory_repository,
     get_low_stock_threshold,
     get_metrics_publisher,
+    get_order_repository,
 )
 from api_gateway.orchestration import notify_if_low_stock
 from core_cart.domain import Cart, CartItemNotFound, EmptyCart
@@ -45,6 +46,10 @@ from core_inventory.domain import InsufficientStock, StockLevelNotFound
 from core_inventory.ports import InventoryRepository
 from core_inventory.use_cases import GetStockLevel, ReleaseStock, ReserveStock
 from core_observability.ports import MetricsPublisher
+from core_orders.domain import Money as OrderMoney
+from core_orders.domain import OrderLine
+from core_orders.ports import OrderRepository
+from core_orders.use_cases import CreateOrder
 
 router = APIRouter(prefix="/api/cart", tags=["cart"])
 
@@ -94,6 +99,22 @@ def _cart_to_summary(cart: Cart) -> CartSummary:
         total_amount=str(cart.total().amount),
         currency=cart.currency,
     )
+
+
+def _cart_to_order_lines(cart: Cart) -> list[OrderLine]:
+    """Traduz Cart (core_cart) -> OrderLine (core_orders) — os dois cores
+    não se importam entre si (ADR-0002), essa tradução é orquestração e
+    vive aqui, mesmo raciocínio de _cart_to_summary logo acima."""
+    return [
+        OrderLine(
+            sku=item.sku,
+            product_name=item.name,
+            variant_label=item.variant_label,
+            unit_price=OrderMoney(item.unit_price.amount, item.unit_price.currency),
+            quantity=item.quantity,
+        )
+        for item in cart.items
+    ]
 
 
 def _summary_to_text(summary: CartSummary) -> str:
@@ -212,6 +233,7 @@ async def start_checkout(
     event_publisher: EventPublisher = Depends(get_event_publisher),
     low_stock_threshold: int = Depends(get_low_stock_threshold),
     metrics: MetricsPublisher = Depends(get_metrics_publisher),
+    order_repository: OrderRepository = Depends(get_order_repository),
 ) -> CheckoutHandoffResponseSchema:
     try:
         cart = await GetCartForCheckout(repository).execute(cart_id)
@@ -238,6 +260,15 @@ async def start_checkout(
                 continue
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    # Registra o pedido (ADR-0023) — até aqui o checkout era efêmero: virava
+    # um link do WhatsApp e nada ficava gravado do lado do Nick. O pedido é
+    # criado depois que o handoff é montado com sucesso (estoque já
+    # reservado de verdade) para não registrar uma tentativa que nunca
+    # chegou a sair do carrinho.
+    order = await CreateOrder(order_repository).execute(
+        cart_id=cart_id, lines=_cart_to_order_lines(cart), currency=cart.currency
+    )
+
     # Avisa a Nick que um carrinho entrou em checkout — o handoff em si (o
     # link do WhatsApp) ainda depende do cliente abrir e mandar a mensagem;
     # este evento é o que faz a Nick saber que precisa ficar de olho. Quem
@@ -248,9 +279,15 @@ async def start_checkout(
     await event_publisher.publish(
         DomainEvent(
             name="checkout.created",
-            payload={"cart_id": cart_id, "summary_text": _summary_to_text(summary)},
+            payload={
+                "cart_id": cart_id,
+                "order_id": order.order_id,
+                "summary_text": _summary_to_text(summary),
+            },
         )
     )
     metrics.increment("checkout_created_total")
 
-    return CheckoutHandoffResponseSchema(handoff_url=url, provider=checkout.provider_name)
+    return CheckoutHandoffResponseSchema(
+        handoff_url=url, provider=checkout.provider_name, order_id=order.order_id
+    )
