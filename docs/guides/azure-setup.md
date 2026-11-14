@@ -93,19 +93,30 @@ az ad sp create --id <appId-copiado-acima>
 - O `app create` só cria a "aplicação"; esse comando cria o **Service Principal** associado a ela — é o objeto que de fato recebe permissões (role assignments) dentro de uma subscription. Sem esse passo, o app existe mas não consegue ser "convidado" pra nenhum Resource Group.
 
 ```powershell
-az ad app federated-credential create --id <appId> --parameters '{\"name\": \"github-actions-dev\", \"issuer\": \"https://token.actions.githubusercontent.com\", \"subject\": \"repo:SamuelSMatos/revold:environment:dev\", \"audiences\": [\"api://AzureADTokenExchange\"]}'
+@'
+{
+  "name": "github-actions-dev",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:SamuelSMatos/revold:environment:dev",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+'@ | Set-Content -Path federated-credential-dev.json -Encoding utf8
+
+az ad app federated-credential create --id <appId> --parameters federated-credential-dev.json
 ```
+- O JSON vai pra um **arquivo** (`federated-credential-dev.json`), não direto na linha de comando — passar esse JSON como string inline quebra no PowerShell (aspas duplas dentro de aspas simples não são processadas do jeito que parecem, e o próprio `az ad app federated-credential create --help` já recomenda arquivo em vez de string). O bloco `@' ... '@` é um here-string do PowerShell: tudo entre as duas linhas é texto literal, sem precisar escapar nada.
 - Configura a **federação OIDC**: diz ao Entra ID "confie em tokens assinados pelo GitHub Actions (`issuer`), desde que o token seja especificamente do repositório/ambiente certo (`subject`)". É isso que elimina a necessidade de um client secret — o GitHub Actions troca esse token por um token Azure válido na hora do deploy.
-  - `name`: só um rótulo pra identificar essa credencial depois (pode repetir o padrão `github-actions-<ambiente>`).
-  - `issuer`: valor **fixo**, sempre `https://token.actions.githubusercontent.com` — é o emissor de todo token OIDC do GitHub Actions.
-  - `subject`: precisa bater **exatamente** com `repo:<org-ou-usuário>/<repositório>:environment:<nome-do-ambiente>` — troque `SamuelSMatos/revold` e `dev` pelos valores reais; é essa string que amarra a credencial a um GitHub Environment específico (Passo 4 abaixo).
+  - `name`: só um rótulo pra identificar essa credencial depois (pode repetir o padrão `github-actions-<ambiente>`, trocando o nome do arquivo também).
+  - `issuer`: valor **fixo**, sempre `https://token.actions.githubusercontent.com`, **sem barra no final** — é exatamente a string que o GitHub grava no claim `iss` do token (conferido na documentação oficial do GitHub; alguns exemplos da própria Microsoft colocam a barra por engano, mas o valor que precisa bater com o token real é sem ela).
+  - `subject`: precisa bater **exatamente** com `repo:<org-ou-usuário>/<repositório>:environment:<nome-do-ambiente>` — troque `SamuelSMatos/revold` e `dev` pelos valores reais; é essa string que amarra a credencial a um GitHub Environment específico (criado logo abaixo, item 1).
   - `audiences`: valor **fixo**, sempre `api://AzureADTokenExchange` — é a audiência que o Azure espera ver no token.
+  - Repita o bloco inteiro (arquivo + comando) pra `staging` e `prod`, trocando `dev` nos três lugares (nome do arquivo, `name` e `subject`).
 
 ```powershell
 az role assignment create --assignee <appId> --role Contributor --scope /subscriptions/<subscription-id>/resourceGroups/rg-revold-dev
 ```
 - Dá ao Service Principal a mesma role `Contributor` que o dev humano tem, mas escopada só ao Resource Group `rg-revold-dev` — é o que permite o pipeline rodar `terraform apply` nesse RG.
-- `--assignee` aceita o `appId` direto. `--scope` é o caminho completo do recurso — troque `<subscription-id>` pelo valor que apareceu no `az account show` (Passo 0).
+- `--assignee` aceita o `appId` direto. `--scope` é o caminho completo do recurso — troque `<subscription-id>` pelo valor que apareceu no `az account show` (seção "Armadilha comum: tenant/subscription errado", no início deste guia).
 
 Depois de repetir os 4 comandos acima pra `staging` e `prod` (trocando o nome do app e o RG de destino):
 
@@ -122,9 +133,9 @@ O backend remoto está comentado em `iac/terraform/providers.tf` — sem ele, du
 O state não pode ser guardado dentro de um recurso que o próprio Terraform ainda vai criar — por isso esse bootstrap é feito direto no CLI, uma vez só, por quem for configurar o backend (normalmente a conta admin).
 
 ```powershell
-az storage account check-name-availability --name revoldtfstate
+az storage account check-name --name revoldtfstate
 ```
-- Nome de storage account precisa ser **globalmente único em todo o Azure** (não só na sua subscription), só letras minúsculas e números, 3 a 24 caracteres. Esse comando confere isso *antes* de tentar criar — devolve um JSON com `"nameAvailable": true/false` e, se `false`, o motivo. Se vier `false`, escolha outro nome (ex.: `revoldtfstate2026`) e repita antes de seguir.
+- Nome de storage account precisa ser **globalmente único em todo o Azure** (não só na sua subscription), só letras minúsculas e números, 3 a 24 caracteres. Esse comando confere isso *antes* de tentar criar — devolve um JSON com `"nameAvailable": true/false` e, se `false`, o motivo. Se vier `false`, escolha outro nome (ex.: `revoldtfstate2026`) e repita antes de seguir. (Confirmado em `az storage account check-name --help` — o comando **não** se chama `check-name-availability`, apesar de ser o nome usado em outros produtos Azure.)
 
 ```powershell
 az group create -n rg-revold-tfstate -l brazilsouth
@@ -140,11 +151,11 @@ az storage account create -n revoldtfstate -g rg-revold-tfstate -l brazilsouth -
 - `--sku Standard_LRS`: nível de redundância — *Locally Redundant Storage*, 3 cópias dentro do mesmo datacenter. É o mais barato; suficiente pro tfstate (se perder, dá pra reconstruir reimportando os recursos reais — não é dado de cliente). Trocar por `Standard_GRS` (georedundante, outro datacenter) se quiser mais segurança, por um custo um pouco maior.
 
 ```powershell
-az storage container create -n tfstate --account-name revoldtfstate --auth-mode login
+az storage container create -n tfstate --account-name revoldtfstate
 ```
 - `-n`: nome do **container** (como uma "pasta" dentro do storage account) — precisa bater com `container_name` no bloco `backend` do Passo 6.2.
 - `--account-name`: em qual storage account esse container vive.
-- `--auth-mode login`: usa a sua própria identidade do Entra ID (já logada via `az login`) pra criar o container, em vez de precisar buscar a account key manualmente — mais simples quando quem está rodando já é `Owner`/`Contributor` do storage account.
+- Sem `--auth-mode`: o CLI usa o modo padrão (`key`), que busca a account key automaticamente via a sua sessão logada — isso só exige a permissão de listar chaves (`listKeys`, presente em `Owner` **e** `Contributor`). Não use `--auth-mode login` aqui a menos que a conta tenha também um role de *data plane* (`Storage Blob Data Contributor`) — `Contributor` sozinho não inclui isso, só `Owner` inclui por padrão, e misturar os dois casos sem perceber é fonte comum de "Authorization failed" neste comando específico.
 
 ### 6.2 — Apontar o Terraform pro backend remoto
 
