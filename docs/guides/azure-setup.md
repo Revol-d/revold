@@ -167,7 +167,35 @@ terraform -chdir=iac/terraform init -migrate-state
 - `init`: baixa o provider `azurerm` e conecta ao backend configurado.
 - `-migrate-state`: como já existia um state local (de qualquer teste anterior) e agora tem um backend novo, essa flag pergunta (responda `yes`) se quer copiar o conteúdo do state local pro blob que acabou de ser criado, em vez de começar do zero.
 
-### 6.3 — Loop de teste seguro, sempre lendo antes de aplicar
+### 6.3 — Criar os três ambientes (dev/staging/production)
+
+**Esse é o ponto que ficava faltando:** `var.environment` (`iac/terraform/variables.tf`) default é `"dev"`, mas só trocar esse valor e rodar `apply` de novo **não cria um segundo ambiente** — o `backend` do Passo 6.2 aponta pra um `key` fixo (`revold.tfstate`), então um state só ficaria responsável pelos três. Trocar `environment` de `dev` pra `staging` nesse cenário faria o Terraform entender "o Resource Group mudou de nome" e **destruir o de dev pra criar o de staging** no lugar, em vez de criar os dois lado a lado.
+
+A solução é usar **Terraform Workspaces** — cada workspace tem seu próprio arquivo de state dentro do mesmo container (o backend `azurerm` guarda cada um em `terraform.tfstateenv/<workspace>/revold.tfstate`), então dev/staging/production nunca se misturam:
+
+```powershell
+terraform -chdir=iac/terraform workspace new dev
+terraform -chdir=iac/terraform workspace new staging
+terraform -chdir=iac/terraform workspace new production
+terraform -chdir=iac/terraform workspace list
+```
+- `workspace new <nome>` cria o workspace **e já troca a sessão ativa pra ele** — rode os três antes de qualquer `apply`, pra nada acabar criado sem querer no workspace `default`.
+- `workspace list` mostra os três (e o `default`, criado automaticamente), com um `*` indicando qual está ativo no momento.
+- Use exatamente `dev`, `staging` e `production` — são os valores que o resto do código (`rg-${project_name}-${environment}`) já assume; "hml" ou qualquer outro nome quebraria essa convenção.
+
+Daqui pra frente, **sempre selecione o workspace certo antes de rodar `plan`/`apply`**, e passe o mesmo valor em `-var="environment=..."` (o workspace não troca essa variável sozinho, são dois mecanismos independentes que precisam concordar):
+
+```powershell
+terraform -chdir=iac/terraform workspace select dev
+$env:TF_VAR_postgres_admin_password = "escolha-uma-senha-forte-aqui"
+terraform -chdir=iac/terraform plan  -var="environment=dev"
+terraform -chdir=iac/terraform apply -var="environment=dev"
+```
+- `workspace select dev`: troca a sessão ativa pro workspace `dev` — qualquer `plan`/`apply` depois disso lê/escreve só o state desse workspace.
+- `-var="environment=dev"`: sobrescreve o default de `variables.tf` só nessa chamada, sem precisar editar o arquivo. Repita o bloco inteiro trocando `dev` por `staging` e depois `production` (nos três lugares: `workspace select`, `plan -var` e `apply -var`) pra criar os outros dois.
+- A senha do Postgres (`TF_VAR_postgres_admin_password`) pode ser a mesma ou diferente por ambiente — só precisa estar definida na sessão do PowerShell no momento do `plan`/`apply` daquele workspace.
+
+### 6.4 — Loop de teste seguro, sempre lendo antes de aplicar
 
 ```powershell
 terraform -chdir=iac/terraform fmt -check
@@ -180,15 +208,13 @@ terraform -chdir=iac/terraform validate
 - Confere se o código é sintaticamente válido e internamente consistente (tipo de variável certo, argumento obrigatório presente) — **não** fala com o Azure, não precisa nem de `az login` pra esse passo específico. Pega erro de digitação antes de gastar tempo com um `plan`.
 
 ```powershell
-$env:TF_VAR_postgres_admin_password = "escolha-uma-senha-forte-aqui"
-terraform -chdir=iac/terraform plan
+terraform -chdir=iac/terraform plan -var="environment=dev"
 ```
-- `$env:TF_VAR_postgres_admin_password = "..."`: `postgres_admin_password` (`iac/terraform/variables.tf`) é `sensitive` e não tem valor padrão de propósito — o comentário no próprio arquivo já avisa "passar via `TF_VAR_postgres_admin_password`, nunca commitar". Terraform lê automaticamente qualquer variável de ambiente no formato `TF_VAR_<nome_da_variável>`. Isso só vale pra essa janela do PowerShell — feche e abra outra, precisa setar de novo (de propósito: não fica salvo em lugar nenhum do disco).
-- `plan` (sem `-var-file`): como as outras variáveis (`project_name`, `environment`, `location`) já têm valor padrão em `variables.tf`, só a senha precisa ser passada. `plan` faz um **dry-run** de verdade: conecta no Azure (usa a sessão do `az login`), compara o que o código pede com o que já existe (via o state remoto) e imprime um resumo tipo `Plan: 8 to add, 0 to change, 0 to destroy` — com `+` (cria), `~` (atualiza sem recriar), `-` (destrói) e `-/+` (destrói e recria) na frente de cada recurso. **Leia essa lista inteira antes de aplicar** — é o jeito de pegar "isso vai apagar o banco de produção" antes de acontecer, não depois.
+- Com o workspace `dev` já selecionado (Passo 6.3) e a senha já exportada na sessão, `plan` faz um **dry-run** de verdade: conecta no Azure (usa a sessão do `az login`), compara o que o código pede com o que já existe (via o state remoto desse workspace) e imprime um resumo tipo `Plan: 8 to add, 0 to change, 0 to destroy` — com `+` (cria), `~` (atualiza sem recriar), `-` (destrói) e `-/+` (destrói e recria) na frente de cada recurso. **Leia essa lista inteira antes de aplicar** — é o jeito de pegar "isso vai apagar o banco de produção" antes de acontecer, não depois.
 
-Teste sempre contra `rg-revold-dev` primeiro (o `environment` default em `variables.tf` já é `dev`). Só depois de ver um `plan` limpo rode `terraform -chdir=iac/terraform apply` (ele repete o mesmo plano e pede confirmação digitando `yes`) — e nunca `apply` direto em produção fora do pipeline do Passo 5.
+Teste sempre no workspace `dev` primeiro. Só depois de ver um `plan` limpo rode `terraform -chdir=iac/terraform apply -var="environment=dev"` (ele repete o mesmo plano e pede confirmação digitando `yes`) — e nunca `apply` direto no workspace `production` fora do pipeline do Passo 5.
 
-### 6.4 — Automatizar a verificação
+### 6.5 — Automatizar a verificação
 
 - **Lint/segurança estática**, antes de confiar só na leitura manual do plan: `tflint` (sintaxe/boas práticas do provider) e `checkov` ou `tfsec` (regras de segurança — é esse tipo de ferramenta que pega "Key Vault sem `network_acls`", ver Passo 7).
 - Adicionar um job em `.github/workflows/ci.yml` que roda `fmt`/`validate`/`plan` em PRs que tocam `iac/**`, sem `apply` — pega erro antes do merge, sem exigir que cada dev lembre de rodar isso localmente toda vez.
