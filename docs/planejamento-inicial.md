@@ -429,6 +429,8 @@ Testes: docs/guides/testing.md
 
 Deploy: docs/guides/deployment.md
 
+Infraestrutura Azure: docs/guides/azure-setup.md
+
 Segurança: docs/security/README.md
 
 API: docs/api/README.md
