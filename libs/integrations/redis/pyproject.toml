@@ -1,0 +1,14 @@
+[project]
+name = "revold-redis"
+version = "0.1.0"
+description = "Cliente do Redis assíncrono, compartilhado pelos apps."
+requires-python = ">=3.12"
+# Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
+dependencies = ["redis>=5.0.8,<6"]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/revold_redis"]

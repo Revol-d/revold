@@ -6,5 +6,5 @@
 #
 # Imagem "medium" do catthehacker (~500MB) em vez da imagem "-full"
 # (dezenas de GB) que o act usaria por padrão — suficiente pra rodar
-# poetry/pnpm/node, que é tudo que os jobs deste repositório precisam.
+# uv/pnpm/node, que é tudo que os jobs deste repositório precisam.
 -P ubuntu-latest=catthehacker/ubuntu:act-latest

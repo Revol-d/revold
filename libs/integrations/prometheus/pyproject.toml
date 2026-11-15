@@ -1,0 +1,14 @@
+[project]
+name = "revold-prometheus"
+version = "0.1.0"
+description = "Métricas no Prometheus: implementa a porta MetricsPublisher da plataforma."
+requires-python = ">=3.12"
+# Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
+dependencies = ["prometheus-client>=0.26,<0.27"]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/revold_prometheus"]

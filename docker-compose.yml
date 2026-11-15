@@ -30,13 +30,13 @@ services:
   api-gateway:
     build:
       context: .
-      dockerfile: apps/api-gateway/Dockerfile
+      dockerfile: apps/ecommerce/api-gateway/Dockerfile
       target: dev
     restart: unless-stopped
     ports:
       - "8000:8000"
     # env_file carrega tudo que o .env (copiado de .env.example, ver
-    # "Primeiros passos" do guia de desenvolvimento) configura e que NÃO
+    # "Preparar a máquina" do CONTRIBUTING.md) configura e que NÃO
     # está hardcoded em `environment:` abaixo — NICK_WHATSAPP_NUMBER,
     # SESSION_COOKIE_SECURE, SMTP_*, AZURE_*, GOOGLE_*, WEBHOOK_URLS,
     # PAYMENT_PROVIDER/MERCADO_PAGO_*, WHATSAPP_BUSINESS_* etc.
@@ -69,11 +69,15 @@ services:
       MEDIA_STORAGE_LOCAL_BASE_URL: http://localhost:8000/media
       PUBLIC_API_RATE_LIMIT: "60"
       PUBLIC_API_RATE_LIMIT_WINDOW_SECONDS: "60"
+    # O código das unidades é montado por cima do que a imagem copiou: as unidades estão
+    # instaladas em modo editável (workspace uv), então o reload do Uvicorn enxerga a edição
+    # sem rebuild. O ambiente Python fica em /opt/venv, fora de /app, e não é escondido.
     volumes:
-      - ./cores:/app/cores
-      - ./adapters:/app/adapters
-      - ./workers:/app/workers
-      - ./apps/api-gateway:/app/apps/api-gateway
+      - ./libs:/app/libs
+      - ./products:/app/products
+      - ./apps/ecommerce/api-gateway:/app/apps/ecommerce/api-gateway
+      - ./tests:/app/tests
+      - ./tooling:/app/tooling
       - ./alembic.ini:/app/alembic.ini
       - media_data:/app/media
     depends_on:
@@ -88,22 +92,20 @@ services:
       retries: 20
 
   worker:
-    # Consome os eventos publicados por adapters_messaging.events.CeleryEventPublisher
+    # Consome os eventos publicados por revold_messaging.celery_publisher.CeleryEventPublisher
     # (ADR-0013) — reindexação incremental do índice de IA, notificação
-    # assíncrona de checkout/estoque baixo. Reaproveita a mesma imagem do
-    # api-gateway (mesmas dependências Python já instaladas — celery,
-    # cores, adapters), só troca o comando.
+    # assíncrona de checkout/estoque baixo. Tem a própria imagem
+    # (apps/ecommerce/event-worker), com só o fecho que o unit.yaml dele declara.
     build:
       context: .
-      dockerfile: apps/api-gateway/Dockerfile
+      dockerfile: apps/ecommerce/event-worker/Dockerfile
       target: dev
     restart: unless-stopped
-    command: ["poetry", "run", "celery", "-A", "event_worker.celery_app", "worker", "--loglevel=info"]
     # Mesmo racional do api-gateway acima: SMTP_*/NICK_NOTIFICATION_EMAIL
     # (canal de e-mail, ADR-0018) e WHATSAPP_BUSINESS_*/NICK_WHATSAPP_NUMBER
     # (ADR-0025) só chegam aqui via .env — é este serviço, não o
     # api-gateway, que de fato despacha as notificações (ver
-    # workers/event-worker/src/event_worker/celery_app.py). Mesma correção
+    # apps/ecommerce/event-worker/src/event_worker/celery_app.py). Mesma correção
     # do api-gateway acima: NOTIFICATION_PROVIDER não fica mais hardcoded
     # aqui, senão o `.env` nunca teria efeito.
     env_file:
@@ -115,9 +117,9 @@ services:
       WEBHOOK_SENDER_PROVIDER: logging
       WEBHOOK_URLS: ""
     volumes:
-      - ./cores:/app/cores
-      - ./adapters:/app/adapters
-      - ./workers:/app/workers
+      - ./libs:/app/libs
+      - ./products:/app/products
+      - ./apps/ecommerce/event-worker:/app/apps/ecommerce/event-worker
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,7 +129,7 @@ services:
   storefront:
     build:
       context: .
-      dockerfile: apps/storefront/Dockerfile
+      dockerfile: apps/ecommerce/storefront/Dockerfile
       target: dev
     restart: unless-stopped
     ports:
@@ -137,14 +139,15 @@ services:
       # por isso localhost:8000 via port mapping). API_GATEWAY_INTERNAL_URL
       # é lido pelo servidor do Next.js dentro deste container, que precisa
       # do nome do serviço na rede do Compose (ver comentário em
-      # apps/storefront/lib/api.ts).
+      # apps/ecommerce/storefront/lib/api.ts).
       NEXT_PUBLIC_API_GATEWAY_URL: http://localhost:8000
       API_GATEWAY_INTERNAL_URL: http://api-gateway:8000
     volumes:
-      - ./apps/storefront:/repo/apps/storefront
-      - ./packages:/repo/packages
-      - /repo/apps/storefront/node_modules
-      - /repo/apps/storefront/.next
+      - ./apps/ecommerce/storefront:/repo/apps/ecommerce/storefront
+      - ./libs/web:/repo/libs/web
+      - /repo/apps/ecommerce/storefront/node_modules
+      - /repo/apps/ecommerce/storefront/.next
+      - /repo/libs/web/ui/node_modules
     depends_on:
       api-gateway:
         condition: service_healthy
@@ -157,7 +160,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
       api-gateway:
@@ -179,14 +182,14 @@ services:
       # Datasource Prometheus + dashboard "Revold — Visão Geral" (ADR-0017)
       # provisionados como código — já aparecem no primeiro load, sem
       # configuração manual.
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
 
   admin-dashboard:
     build:
       context: .
-      dockerfile: apps/admin-dashboard/Dockerfile
+      dockerfile: apps/ecommerce/admin-dashboard/Dockerfile
       target: dev
     restart: unless-stopped
     ports:
@@ -194,10 +197,11 @@ services:
     environment:
       NEXT_PUBLIC_API_GATEWAY_URL: http://localhost:8000
     volumes:
-      - ./apps/admin-dashboard:/repo/apps/admin-dashboard
-      - ./packages:/repo/packages
-      - /repo/apps/admin-dashboard/node_modules
-      - /repo/apps/admin-dashboard/.next
+      - ./apps/ecommerce/admin-dashboard:/repo/apps/ecommerce/admin-dashboard
+      - ./libs/web:/repo/libs/web
+      - /repo/apps/ecommerce/admin-dashboard/node_modules
+      - /repo/apps/ecommerce/admin-dashboard/.next
+      - /repo/libs/web/ui/node_modules
     depends_on:
       api-gateway:
         condition: service_healthy

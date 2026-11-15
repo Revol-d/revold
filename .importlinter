@@ -1,0 +1,1114 @@
+# Gerado por `uv run dev gen` a partir dos unit.yaml. Nao edite a mao.
+#
+# Tres familias de contrato:
+#   1. cada unidade so importa o que declara em depends_on (regra D1, verificada tambem
+#      no manifesto);
+#   2. dominio e produto nao importam integracao fora de adapters/; application/ e ports/
+#      podem importar so os `pure_modules` que a integracao declara (modelos puros);
+#   3. camadas dentro de dominio e produto: adapters -> application -> ports -> domain; e, quando
+#      o unit.yaml declara `stages`, as etapas de application/.
+
+[importlinter]
+root_packages =
+    revold_ai_assistant
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_identity
+    revold_inventory
+    revold_notification
+    revold_orders
+    revold_payments
+    revold_store_settings
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+    revold_platform
+    revold_ecommerce
+
+[importlinter:contract:1]
+name = ai-assistant so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_ai_assistant
+forbidden_modules =
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:2]
+name = cart so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_cart
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:3]
+name = catalog so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_catalog
+forbidden_modules =
+    revold_ai_assistant
+    revold_cart
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:4]
+name = communication so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_communication
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+allow_indirect_imports = True
+
+[importlinter:contract:5]
+name = identity so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_identity
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:6]
+name = inventory so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_inventory
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:7]
+name = notification so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_notification
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_store_settings
+allow_indirect_imports = True
+
+[importlinter:contract:8]
+name = orders so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_orders
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:9]
+name = payments so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_payments
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:10]
+name = store-settings so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_store_settings
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:11]
+name = azure-blob so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_azure_blob
+forbidden_modules =
+    revold_ai_assistant
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:12]
+name = mercado-pago so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_mercado_pago
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:13]
+name = messaging so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_messaging
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:14]
+name = openai so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_openai
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:15]
+name = postgres so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_postgres
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:16]
+name = prometheus so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_prometheus
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:17]
+name = redis so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_redis
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:18]
+name = smtp so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_smtp
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:19]
+name = whatsapp so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_whatsapp
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_platform
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+allow_indirect_imports = True
+
+[importlinter:contract:20]
+name = platform so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_platform
+forbidden_modules =
+    revold_ai_assistant
+    revold_azure_blob
+    revold_cart
+    revold_catalog
+    revold_communication
+    revold_ecommerce
+    revold_identity
+    revold_inventory
+    revold_mercado_pago
+    revold_messaging
+    revold_notification
+    revold_openai
+    revold_orders
+    revold_payments
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_store_settings
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:21]
+name = ecommerce so importa o que declara em depends_on
+type = forbidden
+source_modules =
+    revold_ecommerce
+forbidden_modules =
+    revold_azure_blob
+    revold_cart
+    revold_communication
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:22]
+name = ai-assistant: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_ai_assistant.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:23]
+name = ai-assistant: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_ai_assistant.application
+    revold_ai_assistant.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:24]
+name = ai-assistant: camadas
+type = layers
+containers =
+    revold_ai_assistant
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:25]
+name = cart: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_cart.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:26]
+name = cart: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_cart.application
+    revold_cart.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:27]
+name = cart: camadas
+type = layers
+containers =
+    revold_cart
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:28]
+name = catalog: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_catalog.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:29]
+name = catalog: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_catalog.application
+    revold_catalog.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:30]
+name = catalog: camadas
+type = layers
+containers =
+    revold_catalog
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:31]
+name = communication: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_communication.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:32]
+name = communication: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_communication.application
+    revold_communication.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:33]
+name = communication: camadas
+type = layers
+containers =
+    revold_communication
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:34]
+name = identity: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_identity.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:35]
+name = identity: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_identity.application
+    revold_identity.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:36]
+name = identity: camadas
+type = layers
+containers =
+    revold_identity
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:37]
+name = inventory: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_inventory.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:38]
+name = inventory: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_inventory.application
+    revold_inventory.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:39]
+name = inventory: camadas
+type = layers
+containers =
+    revold_inventory
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:40]
+name = notification: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_notification.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:41]
+name = notification: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_notification.application
+    revold_notification.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:42]
+name = notification: camadas
+type = layers
+containers =
+    revold_notification
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:43]
+name = orders: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_orders.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:44]
+name = orders: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_orders.application
+    revold_orders.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:45]
+name = orders: camadas
+type = layers
+containers =
+    revold_orders
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:46]
+name = payments: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_payments.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:47]
+name = payments: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_payments.application
+    revold_payments.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:48]
+name = payments: camadas
+type = layers
+containers =
+    revold_payments
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:49]
+name = store-settings: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_store_settings.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:50]
+name = store-settings: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_store_settings.application
+    revold_store_settings.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:51]
+name = store-settings: camadas
+type = layers
+containers =
+    revold_store_settings
+layers =
+    adapters
+    application
+    ports
+    domain
+
+[importlinter:contract:52]
+name = ecommerce: dominio nao importa integracao
+type = forbidden
+source_modules =
+    revold_ecommerce.domain
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago
+    revold_messaging
+    revold_openai
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp
+allow_indirect_imports = True
+
+[importlinter:contract:53]
+name = ecommerce: integracao com I/O so entra pela camada adapters
+type = forbidden
+source_modules =
+    revold_ecommerce.application
+    revold_ecommerce.ports
+forbidden_modules =
+    revold_azure_blob
+    revold_mercado_pago.client
+    revold_messaging
+    revold_openai.chat
+    revold_openai.embeddings
+    revold_postgres
+    revold_prometheus
+    revold_redis
+    revold_smtp
+    revold_whatsapp.cloud_api
+allow_indirect_imports = True
+
+[importlinter:contract:54]
+name = ecommerce: camadas
+type = layers
+containers =
+    revold_ecommerce
+layers =
+    adapters
+    application
+    ports
+    domain

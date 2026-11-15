@@ -1,0 +1,96 @@
+name: Relato de bug
+description: Reportar um comportamento incorreto ou inesperado
+labels: ["tipo:fix"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sem emojis. Não credite IA como autora (divulgar uso de IA é permitido).
+        Nunca cole segredo: valor de variável de ambiente, credencial, token, connection string,
+        caminho absoluto de máquina ou e-mail. Cite o nome da variável, nunca o valor.
+  - type: dropdown
+    id: unidade
+    attributes:
+      label: Unidade
+      description: Onde o defeito aparece, pelo id do `unit.yaml`. Se não souber, escolha "nao sei".
+      options:
+        - api-gateway (app)
+        - event-worker (app)
+        - catalog-indexer (app)
+        - storefront (app, site)
+        - admin-dashboard (app, site)
+        - ecommerce (produto)
+        - ai-assistant
+        - cart
+        - catalog
+        - communication
+        - identity
+        - inventory
+        - notification
+        - orders
+        - payments
+        - store-settings
+        - platform
+        - postgres
+        - redis
+        - messaging
+        - prometheus
+        - smtp
+        - whatsapp
+        - mercado-pago
+        - openai
+        - azure-blob
+        - ui (web)
+        - tooling
+        - plataforma (CI, scripts, deploy, docs, gates)
+        - nao sei
+    validations:
+      required: true
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: O comportamento observado.
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que era esperado
+    validations:
+      required: true
+  - type: textarea
+    id: reproduzir
+    attributes:
+      label: Como reproduzir
+      description: Passo a passo mínimo.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: onde
+    attributes:
+      label: Onde ocorre
+      options:
+        - testes na máquina (uv)
+        - pilha local (Docker Compose)
+        - CI
+        - ambiente publicado
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do app ou commit
+      description: Ex. api-gateway@0.2.0, ou o hash do commit.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs ou mensagens de erro
+      description: Já com qualquer segredo e dado pessoal removidos.
+      render: text
+  - type: textarea
+    id: notas
+    attributes:
+      label: Notas adicionais

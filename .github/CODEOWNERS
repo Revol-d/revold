@@ -1,0 +1,80 @@
+# Gerado por `uv run dev gen` a partir dos unit.yaml e de tooling/repo.yaml. Nao edite a mao.
+#
+# Para trocar o dono de uma unidade, edite o `owners` do unit.yaml dela e rode `uv run dev gen`.
+# Por que cada regra existe e o que falha em silencio: docs/branch-strategy.md, secao
+# "Revisao de PR — CODEOWNERS". A ULTIMA regra que casar e a que vale.
+
+# Tudo, por padrao.
+*                                          @SamuelSMatos @dmourans
+
+# Unidades (owners do unit.yaml).
+/apps/ecommerce/admin-dashboard/           @SamuelSMatos @dmourans
+/apps/ecommerce/api-gateway/               @SamuelSMatos @dmourans
+/apps/ecommerce/catalog-indexer/           @SamuelSMatos @dmourans
+/apps/ecommerce/event-worker/              @SamuelSMatos @dmourans
+/apps/ecommerce/storefront/                @SamuelSMatos @dmourans
+/libs/domains/ai-assistant/                @SamuelSMatos @dmourans
+/libs/domains/cart/                        @SamuelSMatos @dmourans
+/libs/domains/catalog/                     @SamuelSMatos @dmourans
+/libs/domains/communication/               @SamuelSMatos @dmourans
+/libs/domains/identity/                    @SamuelSMatos @dmourans
+/libs/domains/inventory/                   @SamuelSMatos @dmourans
+/libs/domains/notification/                @SamuelSMatos @dmourans
+/libs/domains/orders/                      @SamuelSMatos @dmourans
+/libs/domains/payments/                    @SamuelSMatos @dmourans
+/libs/domains/store-settings/              @SamuelSMatos @dmourans
+/libs/integrations/azure-blob/             @SamuelSMatos @dmourans
+/libs/integrations/mercado-pago/           @SamuelSMatos @dmourans
+/libs/integrations/messaging/              @SamuelSMatos @dmourans
+/libs/integrations/openai/                 @SamuelSMatos @dmourans
+/libs/integrations/postgres/               @SamuelSMatos @dmourans
+/libs/integrations/prometheus/             @SamuelSMatos @dmourans
+/libs/integrations/redis/                  @SamuelSMatos @dmourans
+/libs/integrations/smtp/                   @SamuelSMatos @dmourans
+/libs/integrations/whatsapp/               @SamuelSMatos @dmourans
+/libs/platform/                            @SamuelSMatos @dmourans
+/libs/web/ui/                              @SamuelSMatos @dmourans
+/products/ecommerce/                       @SamuelSMatos @dmourans
+
+# Plataforma: gates, tooling e deploy.
+/.github/                                  @SamuelSMatos @dmourans
+/scripts/                                  @SamuelSMatos @dmourans
+/tooling/                                  @SamuelSMatos @dmourans
+/deploy/                                   @SamuelSMatos @dmourans
+/.releases/                                @SamuelSMatos @dmourans
+/.importlinter                             @SamuelSMatos @dmourans
+/.pre-commit-config.yaml                   @SamuelSMatos @dmourans
+/pyproject.toml                            @SamuelSMatos @dmourans
+/uv.lock                                   @SamuelSMatos @dmourans
+/docker-compose.yml                        @SamuelSMatos @dmourans
+/Makefile                                  @SamuelSMatos @dmourans
+
+# Os proprios manifestos sao da plataforma (ADR-0030): ninguem se poe como dono de
+# uma unidade e aprova o proprio PR.
+/apps/ecommerce/admin-dashboard/unit.yaml  @SamuelSMatos @dmourans
+/apps/ecommerce/api-gateway/unit.yaml      @SamuelSMatos @dmourans
+/apps/ecommerce/catalog-indexer/unit.yaml  @SamuelSMatos @dmourans
+/apps/ecommerce/event-worker/unit.yaml     @SamuelSMatos @dmourans
+/apps/ecommerce/storefront/unit.yaml       @SamuelSMatos @dmourans
+/libs/domains/ai-assistant/unit.yaml       @SamuelSMatos @dmourans
+/libs/domains/cart/unit.yaml               @SamuelSMatos @dmourans
+/libs/domains/catalog/unit.yaml            @SamuelSMatos @dmourans
+/libs/domains/communication/unit.yaml      @SamuelSMatos @dmourans
+/libs/domains/identity/unit.yaml           @SamuelSMatos @dmourans
+/libs/domains/inventory/unit.yaml          @SamuelSMatos @dmourans
+/libs/domains/notification/unit.yaml       @SamuelSMatos @dmourans
+/libs/domains/orders/unit.yaml             @SamuelSMatos @dmourans
+/libs/domains/payments/unit.yaml           @SamuelSMatos @dmourans
+/libs/domains/store-settings/unit.yaml     @SamuelSMatos @dmourans
+/libs/integrations/azure-blob/unit.yaml    @SamuelSMatos @dmourans
+/libs/integrations/mercado-pago/unit.yaml  @SamuelSMatos @dmourans
+/libs/integrations/messaging/unit.yaml     @SamuelSMatos @dmourans
+/libs/integrations/openai/unit.yaml        @SamuelSMatos @dmourans
+/libs/integrations/postgres/unit.yaml      @SamuelSMatos @dmourans
+/libs/integrations/prometheus/unit.yaml    @SamuelSMatos @dmourans
+/libs/integrations/redis/unit.yaml         @SamuelSMatos @dmourans
+/libs/integrations/smtp/unit.yaml          @SamuelSMatos @dmourans
+/libs/integrations/whatsapp/unit.yaml      @SamuelSMatos @dmourans
+/libs/platform/unit.yaml                   @SamuelSMatos @dmourans
+/libs/web/ui/unit.yaml                     @SamuelSMatos @dmourans
+/products/ecommerce/unit.yaml              @SamuelSMatos @dmourans

@@ -1,0 +1,11 @@
+# Manifesto da unidade (schema: tooling/schema/unit.schema.json; ADR-0030).
+# Mudou algo aqui? Rode `uv run dev gen` para regenerar .importlinter e CODEOWNERS.
+# Loja virtual (Next.js). Site que roda sozinho: consome a API do api-gateway por HTTP e usa os componentes de libs/web/ui.
+id: storefront
+kind: app
+product: ecommerce
+language: typescript
+lifecycle: pilot
+owners: ["@SamuelSMatos", "@dmourans"]
+depends_on: ["ui"]
+runtime: next-web

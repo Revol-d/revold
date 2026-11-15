@@ -1,0 +1,62 @@
+"""App factory da API (composition root).
+
+Rode com `uvicorn --factory {{import}}.main:create_app`. A factory, e nao um `app` no modulo, e
+de proposito: a configuracao e lida quando o app nasce, nao no import, e cada teste monta o seu.
+
+- `/health` responde se o processo esta de pe (liveness). Nao olha dependencia nenhuma: se
+  olhasse, um banco fora do ar faria o orquestrador reiniciar uma API que esta bem.
+- `/ready` responde se a API pode receber trafego (readiness): roda as checagens registradas em
+  `readiness_checks` e devolve 503 se alguma falhar.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
+
+from {{import}}.logging_setup import CORRELATION_HEADER, configure_logging, correlation_id
+from {{import}}.settings import Settings, load_settings
+
+logger = logging.getLogger(__name__)
+
+ReadinessCheck = Callable[[], bool]
+
+
+def create_app(settings: Settings | None = None, readiness_checks: dict[str, ReadinessCheck] | None = None) -> FastAPI:
+    """Monta a API. Os adapters e as checagens de prontidao entram por aqui."""
+    settings = settings or load_settings()
+    configure_logging(settings.log_level)
+    checks = dict(readiness_checks or {})
+    app = FastAPI(title=settings.service_name)
+
+    @app.middleware("http")
+    async def bind_correlation_id(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        token = correlation_id.set(request.headers.get(CORRELATION_HEADER) or uuid.uuid4().hex)
+        try:
+            response = await call_next(request)
+            response.headers[CORRELATION_HEADER] = correlation_id.get()
+            return response
+        finally:
+            correlation_id.reset(token)
+
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok", "service": settings.service_name}
+
+    @app.get("/ready")
+    def ready() -> JSONResponse:
+        results = {}
+        for name, check in checks.items():
+            try:
+                results[name] = bool(check())
+            except Exception:  # noqa: BLE001 -- checagem que explode e checagem que falhou
+                logger.exception("checagem de prontidao %s falhou", name)
+                results[name] = False
+        ok = all(results.values())
+        return JSONResponse({"status": "ready" if ok else "not-ready", "checks": results}, status_code=200 if ok else 503)
+
+    return app

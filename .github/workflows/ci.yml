@@ -1,21 +1,134 @@
 name: CI
 
+# Trunk-based (ADR-0028): a `main` e a unica branch protegida e todo PR vai direto para ela.
+# O draft PR e a pista livre: quem quer ver o CI rodar sem pedir revisao abre o PR em draft.
 on:
+  # So `pull_request`. Ter tambem `push` na `main` faria o CI rodar DUAS VEZES sobre o mesmo
+  # codigo: o evento `pull_request` ja roda sobre o RESULTADO do merge, nao sobre a branch de
+  # origem sozinha. O commit que entra na `main` ja foi validado antes de existir.
   pull_request:
-  push:
-    branches: [main, develop]
+    branches: [main]
+  workflow_dispatch:
+
+# Cancela a rodada anterior quando chega commit novo na mesma ref. Num PR em draft, onde se
+# empurra varias vezes seguidas, isso e a diferenca entre uma fila de rodadas obsoletas e o
+# resultado do que esta la agora.
+concurrency:
+  # `head_ref || ref`: em PR, agrupa pela branch de ORIGEM; fora de PR, pela ref. Com
+  # `github.ref` sozinho, empurrar de novo numa branch com PR aberto NAO cancelava a
+  # rodada anterior, porque a ref de um PR e `refs/pull/N/merge` e muda a cada push.
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+# Menor privilegio: nenhum job deste workflow escreve nada no repositorio.
+permissions:
+  contents: read
 
 jobs:
-  python:
-    name: Python — lint & test (core-catalog, core-identity, api-gateway)
+  lint:
+    name: Lint (ruff)
     runs-on: ubuntu-latest
-    # Postgres real de verdade, não só o fake em memória: os testes de
-    # adapters/persistence/tests/test_catalog_repository_integration.py
-    # pulam (skip) sozinhos se DATABASE_URL não apontar pra um Postgres
-    # alcançável — sem este service eles rodavam localmente nesta sessão,
-    # mas nunca no CI, e a suíte "verde" escondia isso. pgvector/pgvector
-    # (não a imagem postgres oficial) porque a migração 0003 já cria a
-    # extensão vector, usada por core-ai-assistant.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Instalar o workspace
+        run: uv sync --frozen
+      - name: ruff - lint
+        # A versao vem do grupo `dev` do pyproject.toml, pinada pelo uv.lock: a mesma do hook.
+        run: uv run ruff check .
+
+  hooks:
+    # Os MESMOS hooks de commit do .pre-commit-config.yaml, em todos os arquivos. Ninguem e
+    # obrigado a instalar os hooks na maquina (o Git nao deixa o projeto instalar sozinho), e o
+    # que so o hook conferia (YAML/JSON/TOML quebrado, marcador de conflito, arquivo grande,
+    # espaco no fim da linha, CRLF) chegava na main sem ninguem ver. Caso real: o orders.yaml
+    # ficou invalido desde que nasceu, e o CI nunca percebeu.
+    #
+    # SKIP: o ruff e o dev check ja tem job proprio (`lint` e `architecture`); o bloqueio de
+    # commit na main, no servidor, e do ruleset.
+    name: Hooks do pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Os hooks de commit, em todos os arquivos
+        env:
+          SKIP: ruff-check,dev-check,no-commit-to-protected-branch
+        # A versao do pre-commit fica fixa aqui pelo mesmo motivo das outras ferramentas de gate:
+        # versao nova nao pode reprovar PR sem ninguem ter mexido em codigo.
+        run: uvx pre-commit@4.6.2 run --all-files --show-diff-on-failure
+
+  architecture:
+    name: Manifesto, fronteiras e tipos (dev check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Instalar o workspace
+        run: uv sync --frozen
+      - name: Manifesto, gerados em dia, versoes, import-linter e mypy
+        # O `.importlinter` e o CODEOWNERS sao GERADOS dos unit.yaml (`uv run dev gen`), nunca
+        # editados a mao. O `dev check` reprova quando o commitado diverge do gerado, valida o
+        # manifesto, confere as versoes contra o ultimo release, roda o import-linter e o mypy.
+        #
+        # E o MESMO comando do hook `mypy` do pre-push (.pre-commit-config.yaml). O mypy e GATE:
+        # o codigo esta em zero erros, e erro de tipo reprova a build.
+        env:
+          PYTHONIOENCODING: utf-8
+        run: uv run dev check
+
+  affected:
+    # Quais unidades a branch toca, mais os consumidores delas (fecho reverso). Mudanca so em
+    # docs/ nao afeta nenhuma, e os testes de unidade nao rodam.
+    name: Unidades afetadas
+    runs-on: ubuntu-latest
+    outputs:
+      units: ${{ steps.calc.outputs.units }}
+      any: ${{ steps.calc.outputs.any }}
+      python: ${{ steps.calc.outputs.python }}
+      web: ${{ steps.calc.outputs.web }}
+      e2e: ${{ steps.calc.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Historico inteiro: o calculo compara a branch com o ponto em que ela saiu da base.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Instalar o workspace
+        run: uv sync --frozen
+      - name: Calcular
+        id: calc
+        run: |
+          base="origin/${{ github.base_ref || 'main' }}"
+          json="$(uv run dev affected --base "$base" --json)"
+          echo "$json"
+          echo "units=$(echo "$json" | jq -c .units)" >> "$GITHUB_OUTPUT"
+          echo "any=$(echo "$json" | jq -r .any)" >> "$GITHUB_OUTPUT"
+          echo "python=$(echo "$json" | jq -r .python)" >> "$GITHUB_OUTPUT"
+          echo "web=$(echo "$json" | jq -r .web)" >> "$GITHUB_OUTPUT"
+          # E2E: a loja ou a API (ou qualquer unidade do fecho delas) foi afetada.
+          echo "e2e=$(echo "$json" | jq -r 'any(.units[]; . == "storefront" or . == "api-gateway")')" >> "$GITHUB_OUTPUT"
+
+  tests:
+    # So as unidades Python AFETADAS (job `affected`) e os consumidores delas. Se o PR nao toca
+    # nenhuma (so docs/, ou so um site), o job e pulado, e o `ci-ok` aceita esse skip.
+    name: Testes (Python)
+    runs-on: ubuntu-latest
+    needs: [affected]
+    if: needs.affected.outputs.python == 'true'
+    # Postgres de verdade, nao so o fake em memoria: os testes marcados `integration` pulam
+    # (skip) sozinhos se DATABASE_URL nao apontar para um Postgres alcancavel. Sem este service
+    # eles nunca rodariam no CI, e a suite "verde" esconderia isso. pgvector/pgvector (nao a
+    # imagem postgres oficial) porque a migracao 0003 cria a extensao vector, usada pelo
+    # dominio ai-assistant.
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -36,36 +149,272 @@ jobs:
       TEST_DATABASE_URL: postgresql+asyncpg://revold:revold_ci_only@localhost:5432/revold
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install Poetry
-        run: pipx install poetry
-      - name: Install dependencies
-        run: poetry install --with dev
-      - name: Lint (ruff)
-        run: poetry run ruff check .
-      - name: Type check (mypy)
-        run: poetry run mypy . || true # não bloqueante ainda — cores novos entram sem tipagem 100% completa
-      - name: Run migrations (Postgres real do service acima)
-        run: poetry run alembic upgrade head
-      - name: Test
-        run: poetry run pytest --cov --cov-report=term-missing
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Instalar o workspace
+        run: uv sync --frozen
+      - name: Migracoes (no Postgres do service acima)
+        run: uv run alembic upgrade head
+      - name: Testes das unidades afetadas
+        # `dev test --affected` roda os testes das unidades afetadas e, quando a mudanca e
+        # global (uv.lock, tooling, tests/), a suite central junto.
+        run: uv run dev test --affected --base "origin/${{ github.base_ref || 'main' }}" -q
 
-  node:
-    name: Node — lint & build (storefront, packages/ui)
+  frontend:
+    # O workspace pnpm: a lib `@revold/ui` e os dois sites. Roda so quando alguma unidade
+    # TypeScript foi afetada (`web` do job `affected`).
+    name: Frontend (pnpm lint e build)
+    runs-on: ubuntu-latest
+    needs: [affected]
+    if: needs.affected.outputs.web == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      # A versao do pnpm vem do `packageManager` do package.json da raiz.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - name: Instalar o workspace
+        run: pnpm install --frozen-lockfile
+      # `pnpm lint` e `pnpm build` (os scripts da raiz), e nao `pnpm -r lint`: com `-r` na
+      # linha de comando o pnpm inclui o pacote da raiz, cujo script chama `pnpm -r` de novo, e
+      # cada pacote roda DUAS vezes em paralelo sobre a mesma pasta `.next`.
+      - name: Lint
+        run: pnpm lint
+      - name: Build
+        run: pnpm build
+
+  site-images:
+    # A imagem Docker dos dois sites. O job `frontend` prova que o site compila; este prova que o
+    # Dockerfile ainda monta (caminhos do COPY, workspace pnpm, lock congelado). O mesmo Dockerfile
+    # e o que o `make dev` usa: quebrado, ninguem consegue subir a pilha. O release e a tag dos sites
+    # esperam a decisao de onde eles rodam em producao (CONTRIBUTING.md, secao 13, item 8).
+    name: Imagem ${{ matrix.site }}
+    runs-on: ubuntu-latest
+    needs: [affected]
+    if: needs.affected.outputs.web == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        site: [storefront, admin-dashboard]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Montar a imagem
+        run: docker build --target runtime -f "apps/ecommerce/${{ matrix.site }}/Dockerfile" -t "revold/${{ matrix.site }}:ci" .
+
+  e2e:
+    # A prova de cliente da loja (Playwright): navega, poe no carrinho, fecha o pedido pelo
+    # WhatsApp e busca um produto, contra a pilha de verdade (Postgres, Redis, API e loja do
+    # docker-compose.yml). Protege o caminho do dinheiro, que nenhum outro job exercita.
+    #
+    # O Playwright roda NO RUNNER, e nao num container: o navegador precisa alcancar a loja e a
+    # API pelas portas publicadas (3000 e 8000), como um cliente de verdade. Ensaiado em
+    # 2026-11-15: os 2 testes passam, e com o checkout quebrado de proposito o primeiro reprova.
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: [affected]
+    if: needs.affected.outputs.e2e == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - name: Configuracao da pilha
+        # O compose le o `.env`. Os valores do `.env.example` sao os de desenvolvimento (todo
+        # provedor no adapter local, sem credencial); o checkout precisa de um numero de destino,
+        # e este e de mentira.
+        run: sed 's/^NICK_WHATSAPP_NUMBER=.*/NICK_WHATSAPP_NUMBER=5500000000000/' .env.example > .env
+      - name: Subir banco, fila, API e loja
+        run: docker compose up -d --build --wait postgres redis api-gateway storefront
+      - name: Migracoes
+        run: docker compose exec -T api-gateway alembic upgrade head
+      - name: Esperar a loja responder
+        # O `next dev` compila a pagina no primeiro acesso: sem isto, o primeiro teste gasta o
+        # proprio tempo esperando a compilacao.
+        run: |
+          for i in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3000/ || true)"
+            [ "$code" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::A loja nao respondeu 200 em http://localhost:3000/ (ultimo codigo: $code)."
+          exit 1
+      - name: Instalar o workspace e o navegador
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter storefront exec playwright install --with-deps chromium
+      - name: Testes E2E
+        run: pnpm --filter storefront exec playwright test
+      - name: Logs da pilha
+        if: failure()
+        run: docker compose logs --no-color api-gateway storefront | tail -n 300
+      - name: Rastro dos testes que falharam
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: apps/ecommerce/storefront/test-results/
+          retention-days: 7
+      - name: Derrubar a pilha
+        if: always()
+        run: docker compose down -v
+
+  security:
+    name: Seguranca
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: astral-sh/setup-uv@v5
         with:
-          node-version: "20"
-      - uses: pnpm/action-setup@v4
+          enable-cache: true
+
+      - name: pip-audit - vulnerabilidade conhecida nas dependencias
+        # Informativo: reprova quando o time decidir tratar o que ele aponta. Le o uv.lock
+        # exportado, que e o que as imagens instalam.
+        run: |
+          uv export --frozen --format requirements-txt --no-hashes --no-emit-workspace -o /tmp/req-auditoria.txt
+          uv run --with pip-audit pip-audit --requirement /tmp/req-auditoria.txt
+        continue-on-error: true
+
+      - name: bandit - padrao inseguro no codigo
+        # GATE em severidade media ou alta. O codigo esta em zero achados (medido em
+        # 2026-11-14), entao nao ha baseline: achado novo reprova. B101 (assert) e ruido.
+        run: >-
+          uv run --with 'bandit[toml]' bandit -r
+          apps/ecommerce/api-gateway/src apps/ecommerce/event-worker/src apps/ecommerce/catalog-indexer/src
+          libs/platform libs/integrations libs/domains products/ecommerce/src tooling/src scripts
+          -ll --skip B101 -x '*/tests/*,*/evals/*'
+
+      - name: Nenhum segredo conhecido commitado
+        # Procura as credenciais que ESTE projeto usa, atribuidas a um literal no codigo. E a
+        # segunda camada: a primeira e o secret scanning com push protection do GitHub, que recusa
+        # o push antes de o segredo chegar aqui (CONTRIBUTING.md, secao 13, item 5).
+        run: |
+          nomes='MERCADO_PAGO_ACCESS_TOKEN|MERCADO_PAGO_WEBHOOK_SECRET|AZURE_OPENAI_API_KEY|DEEPSEEK_API_KEY|WHATSAPP_BUSINESS_ACCESS_TOKEN|SMTP_PASSWORD|AZURE_STORAGE_CONNECTION_STRING|AZURE_AD_CLIENT_SECRET|GOOGLE_CLIENT_SECRET'
+          if git grep -nIE "($nomes)[[:space:]]*[=:][[:space:]]*['\"][^'\"]+['\"]" -- '*.py' '*.ts' '*.tsx' '*.yml' '*.yaml' '*.tf' ':!*/tests/*'; then
+            echo "::error::Credencial aparentemente hardcoded. Use o .env local ou o Key Vault.";
+            exit 1;
+          fi
+          echo "Nenhuma credencial conhecida hardcoded."
+
+  images:
+    # O fecho e a imagem de cada app Python. Prova duas coisas que so aparecem aqui: o
+    # Dockerfile ainda monta, e o `uv sync --package` instala tudo o que o app importa (o
+    # ambiente de teste tem TODAS as unidades; a imagem so leva o fecho declarado).
+    name: Imagem ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    needs: [affected, lint, architecture, tests]
+    # `tests` pode ser pulado de proposito (PR que nao afeta unidade Python). Com `needs:` puro,
+    # o skip dele pularia este job tambem; aqui ele so nao roda se algo FALHOU ou foi cancelado.
+    if: >-
+      always() && needs.affected.outputs.python == 'true'
+      && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api-gateway, event-worker, catalog-indexer]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
         with:
-          version: 9.10.0
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Lint
-        run: pnpm -r lint
-      - name: Build
-        run: pnpm -r build
+          enable-cache: true
+      - name: Instalar o workspace
+        run: uv sync --frozen
+      - name: Fecho do app, com BOM
+        run: |
+          uv run dev build "${{ matrix.app }}"
+          cat "dist/${{ matrix.app }}/${{ matrix.app }}.bom.json"
+      - name: Montar a imagem
+        run: docker build --target runtime -f "apps/ecommerce/${{ matrix.app }}/Dockerfile" -t "revold/${{ matrix.app }}:ci" .
+      - name: O app importa dentro da imagem
+        run: |
+          modulo="$(echo "${{ matrix.app }}" | tr '-' '_')"
+          docker run --rm "revold/${{ matrix.app }}:ci" python -c "import importlib, pkgutil, ${modulo}; [importlib.import_module(m.name) for m in pkgutil.walk_packages(${modulo}.__path__, '${modulo}.')]; print('ok')"
+
+  ci-ok:
+    # Check agregado, para o ruleset da `main` exigir UM nome so em vez de dez.
+    #
+    # O id do job e `ci-ok`. O `name` e `CI OK`, que e o texto que o GitHub usa como contexto
+    # do status check: o ruleset (scripts/setup-rulesets.sh) exige `CI OK`. Trocar o `name`
+    # quebraria o merge de todo PR aberto ate alguem atualizar o ruleset.
+    #
+    # DUAS ARMADILHAS, as duas resolvidas aqui. As duas fazem o gate PARECER que protege
+    # enquanto nao protege:
+    #
+    # 1. `if: always()` + checagem explicita de `result`. Com `needs:` puro, um job que falha
+    #    faz este aqui ser **skipped**, nao **failed**. Check obrigatorio que aparece como
+    #    "skipped" nao protege: a merge passa.
+    #
+    # 2. **Todo job de gate precisa estar neste `needs`.** Job fora da lista pode ficar
+    #    VERMELHO com o `CI OK` VERDE, porque o agregado nunca olha para ele.
+    #
+    # AO ADICIONAR UM JOB NOVO: bota o nome dele no `needs` e na checagem abaixo. Job fora
+    # desta lista nao reprova nada. O teste e direto: quebre o job de proposito num PR em draft
+    # e confirme que o `CI OK` fica vermelho.
+    name: CI OK
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, hooks, architecture, affected, tests, frontend, site-images, e2e, security, images]
+    steps:
+      - name: Conferir o resultado de cada job
+        run: |
+          falhou=0
+
+          # `tests` e `images` so podem ser `skipped` quando o `affected` disse que nenhuma
+          # unidade Python foi tocada. Em qualquer outro caso, skip e falha: teste que nao
+          # rodou nao aprovou.
+          for r in "${{ needs.tests.result }}" "${{ needs.images.result }}"; do
+            case "$r/${{ needs.affected.outputs.python }}" in
+              success/*|skipped/false) ;;
+              *) falhou=1 ;;
+            esac
+          done
+          # O `e2e` so pode ser `skipped` quando nem a loja nem a API foram afetadas.
+          case "${{ needs.e2e.result }}/${{ needs.affected.outputs.e2e }}" in
+            success/*|skipped/false) ;;
+            *) falhou=1 ;;
+          esac
+          # O mesmo para o `frontend` e o `site-images`: skip so vale quando nenhuma unidade
+          # TypeScript foi afetada.
+          for r in "${{ needs.frontend.result }}" "${{ needs.site-images.result }}"; do
+            case "$r/${{ needs.affected.outputs.web }}" in
+              success/*|skipped/false) ;;
+              *) falhou=1 ;;
+            esac
+          done
+
+          for r in "${{ needs.lint.result }}" \
+                   "${{ needs.hooks.result }}" \
+                   "${{ needs.architecture.result }}" \
+                   "${{ needs.affected.result }}" \
+                   "${{ needs.security.result }}"; do
+            [ "$r" != "success" ] && falhou=1
+          done
+          if [ "$falhou" -eq 1 ]; then
+            echo "::error::Algum job do CI nao terminou em success."
+            echo "  lint=${{ needs.lint.result }}  hooks=${{ needs.hooks.result }}  architecture=${{ needs.architecture.result }}  security=${{ needs.security.result }}"
+            echo "  affected=${{ needs.affected.result }} (python=${{ needs.affected.outputs.python }}, web=${{ needs.affected.outputs.web }})"
+            echo "  tests=${{ needs.tests.result }}  images=${{ needs.images.result }} (skipped so vale com python=false)"
+            echo "  frontend=${{ needs.frontend.result }}  site-images=${{ needs.site-images.result }} (skipped so vale com web=false)"
+            echo "  e2e=${{ needs.e2e.result }} (skipped so vale com e2e=false)"
+            exit 1
+          fi
+          echo "Codigo pronto para merge."
+
+# ---------------------------------------------------------------------------
+# O QUE AINDA NAO ESTA AQUI, E POR QUE (CONTRIBUTING.md, secao 13)
+#
+# * `ruff format --check`: 155 arquivos herdados nao estao formatados (2026-11-15). Entra no PR
+#   de formatacao combinado para depois da reorganizacao (secao 13, item 6).
+#
+# * Release e tag dos sites: esperam a decisao de onde eles rodam (secao 13, item 8).
+#
+# * Redis no job de testes: os testes marcados `integration` que dependem de Redis (o
+#   round-trip do event-worker) pulam aqui, como ja pulavam.
+# ---------------------------------------------------------------------------

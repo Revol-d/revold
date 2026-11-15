@@ -1,0 +1,123 @@
+# Hooks de pre-commit do monorepo revold.
+#
+# Instalação (requer uv — ver CONTRIBUTING.md, seção 2):
+#   uv tool install pre-commit
+#   pre-commit install
+#   pre-commit install --hook-type pre-push
+#
+# Uso:
+#   pre-commit run --all-files  # rodar manualmente em todos os arquivos
+#   git commit                  # os hooks de commit rodam sozinhos
+#   git push                    # os hooks de push rodam sozinhos
+#
+# Os hooks locais que rodam ferramenta do projeto usam `language: system` + `uv run`, então
+# dependem do ambiente do projeto (`uv sync`). Não há lista de dependências de hook para
+# manter aqui: o uv.lock é a fonte, a mesma do CI.
+#
+# O CI roda os hooks de commit deste arquivo em todos os arquivos (job "Hooks do pre-commit"
+# do .github/workflows/ci.yml). Quem não instalou os hooks descobre no PR, e não na main.
+# Hook novo aqui vale para o CI no mesmo PR, sem mexer no workflow.
+
+repos:
+  # Hooks básicos de qualidade de arquivo
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Remove espaços em branco no final das linhas
+        # Markdown usa dois espaços no fim da linha como quebra; as ADRs antigas usam.
+        exclude: ^docs/kb/decisoes/
+      - id: end-of-file-fixer
+        name: Garante newline no final dos arquivos
+        exclude: ^(docs/kb/decisoes/|pnpm-lock\.yaml$)
+      - id: check-yaml
+        name: Valida sintaxe YAML
+        exclude: ^pnpm-lock\.yaml$
+      - id: check-json
+        name: Valida sintaxe JSON
+        # tsconfig e .eslintrc aceitam comentário (JSONC); o VS Code também.
+        exclude: (tsconfig\.json$|\.eslintrc\.json$|^\.vscode/)
+      - id: check-toml
+        name: Valida sintaxe TOML
+      - id: check-added-large-files
+        name: Previne commit de arquivos grandes (>500KB)
+        # `--enforce-all`: sem ele o hook só olha arquivo NOVO no índice. No CI não há nada no
+        # índice, e o hook passaria sem olhar arquivo nenhum.
+        args: ['--maxkb=500', '--enforce-all']
+        exclude: ^(pnpm-lock\.yaml|uv\.lock)$
+      - id: check-merge-conflict
+        name: Detecta marcadores de merge conflict
+        # `--assume-in-merge`: sem ele o hook só olha quando há um merge em andamento na máquina.
+        # No CI nunca há, e um conflito commitado passava (medido em 2026-11-14, teste de mesa).
+        args: ['--assume-in-merge']
+      - id: check-case-conflict
+        name: Detecta conflitos de case-sensitive em nomes
+      - id: mixed-line-ending
+        name: Normaliza line endings
+        args: ['--fix=lf']
+
+  - repo: local
+    hooks:
+      - id: no-commit-to-protected-branch
+        name: Bloqueia commit/push direto na main
+        entry: python scripts/no_commit_to_protected_branch.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]
+
+      # Lint com ruff. A versão vem do grupo `dev` do pyproject.toml, pinada pelo uv.lock: a
+      # mesma do job de lint do CI. O alvo é o repositório inteiro, e não só os arquivos do
+      # commit, para o resultado ser igual ao do CI.
+      #
+      # `ruff format` NÃO está aqui de propósito: 155 arquivos herdados não estão formatados
+      # (medido em 2026-11-15). Ligar o hook reformataria cada arquivo no primeiro toque e
+      # encheria todo PR de ruído. Formatar tudo é um PR próprio (CONTRIBUTING.md, seção 13).
+      - id: ruff-check
+        name: Lint com ruff
+        entry: uv run ruff check .
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      # O gate único do tooling: manifesto unit.yaml, .importlinter e CODEOWNERS gerados em
+      # dia, versões e fronteiras entre unidades. O mypy fica no hook de push abaixo, com o
+      # mesmo comando.
+      - id: dev-check
+        name: Manifesto, gerados e fronteiras entre unidades (dev check)
+        entry: uv run dev check --no-mypy
+        language: system
+        pass_filenames: false
+        always_run: false
+        files: ^(apps/|libs/|products/|tooling/|\.releases/|\.importlinter$|\.github/CODEOWNERS$|pyproject\.toml$|uv\.lock$)
+
+      # Type checking com mypy. GATE: erro de tipo REPROVA o push. O código está em zero erros
+      # (medido em 2026-11-14: 189 arquivos), e é por isso que pode ser gate: gate que reprova
+      # sempre vira gate que todo mundo pula.
+      #
+      # O job "Manifesto, fronteiras e tipos" do `.github/workflows/ci.yml` roda a MESMA
+      # linha. Se mudar aqui, mude lá.
+      #
+      # `pass_filenames: false` é essencial: com os nomes de arquivo o pre-commit fatia a lista
+      # em lotes e chama o mypy uma vez por lote, e cada lote enxerga só um pedaço do código.
+      # Aqui é uma chamada só, sobre o mesmo alvo do CI.
+      - id: mypy
+        name: Type checking com mypy (reprova o push)
+        entry: uv run dev check
+        language: system
+        pass_filenames: false
+        always_run: false
+        files: ^(apps/|libs/|products/|tooling/)
+        verbose: true
+        stages: [pre-push]
+
+      # Os testes das unidades que a branch afeta, mais os consumidores delas. Os marcados
+      # `integration` pulam sozinhos sem Postgres/Redis, e os `eval` com LLM de verdade, sem
+      # credencial: aqui roda só o que não precisa de infraestrutura.
+      - id: pytest-affected
+        name: Testes das unidades afetadas
+        entry: uv run dev test --affected -q
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

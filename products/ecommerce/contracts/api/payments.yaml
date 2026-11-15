@@ -1,0 +1,109 @@
+openapi: 3.0.3
+info:
+  title: Core Payments API
+  version: "1.0.0"
+  description: >
+    Contrato do core-payments (Contract-First, ver ADR-0002, ADR-0024). Uma
+    cobrança é sempre aberta a partir de um pedido já existente (ver
+    products/ecommerce/contracts/api/orders.yaml) — não há endpoint de criação de cobrança
+    solta. Nesta onda, apenas Pix está implementado de fato contra o
+    Mercado Pago; cartão devolve 501 (ver ADR-0024, "cartão não
+    implementado nesta onda").
+servers:
+  - url: /api
+paths:
+  /orders/{order_id}/charges:
+    post:
+      operationId: createCharge
+      summary: >
+        Abre uma cobrança para o pedido — sem RBAC de propósito, order_id
+        funciona como token de capacidade (mesmo padrão de GET
+        /orders/{order_id}). Reaproveita a cobrança PENDING existente em
+        vez de abrir uma segunda no gateway.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method: { type: string, enum: [pix, credit_card] }
+      responses:
+        "200":
+          description: Cobrança criada (ou reaproveitada)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Charge" }
+        "404":
+          description: Pedido não encontrado
+        "501":
+          description: Método de pagamento ainda não implementado (cartão, nesta onda)
+    get:
+      operationId: getChargeForOrder
+      summary: >
+        Consulta a cobrança mais recente do pedido — usado pelo storefront
+        para dar polling no status (ex.: aguardando confirmação do Pix).
+        Sem RBAC pelo mesmo motivo do POST acima.
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Charge" }
+        "404":
+          description: Nenhuma cobrança encontrada para este pedido
+  /payments/webhooks/mercado-pago:
+    post:
+      operationId: mercadoPagoWebhook
+      summary: >
+        Recebido do Mercado Pago. Valida a assinatura (header x-signature +
+        x-request-id + query data.id, ver ADR-0024) antes de tratar
+        qualquer coisa como confiável; sempre reconsulta o status real no
+        gateway em vez de confiar no payload. Se a cobrança confirmar como
+        paga, propaga automaticamente para o pedido correspondente
+        (equivalente a PATCH /orders/{order_id}/payment-status com
+        action=mark_paid).
+      responses:
+        "200":
+          description: >
+            Processado (inclui os casos "ignored" — notificação sem
+            data.id — e "unknown_charge" — cobrança não encontrada aqui,
+            devolvido como 200 para evitar reentrega infinita).
+        "401":
+          description: Assinatura inválida ou ausente
+
+components:
+  schemas:
+    PaymentMethod:
+      type: string
+      enum: [pix, credit_card]
+    ChargeStatus:
+      type: string
+      enum: [pending, paid, expired, failed, refunded]
+    Charge:
+      type: object
+      required:
+        [charge_id, order_id, provider, method, amount, currency, status, created_at]
+      properties:
+        charge_id: { type: string }
+        order_id: { type: string }
+        provider: { type: string }
+        method: { $ref: "#/components/schemas/PaymentMethod" }
+        amount: { type: string }
+        currency: { type: string }
+        status: { $ref: "#/components/schemas/ChargeStatus" }
+        pix_qr_code: { type: string, nullable: true }
+        pix_copy_paste: { type: string, nullable: true }
+        checkout_url: { type: string, nullable: true }
+        created_at: { type: string }

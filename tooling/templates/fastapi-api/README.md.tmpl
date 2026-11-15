@@ -1,0 +1,36 @@
+# `{{import}}`
+
+{{description}}
+
+- **Tipo:** app (fastapi-api) · **Produto:**{{product}} · **Ciclo de vida:** {{lifecycle}} · **Manifesto:** [unit.yaml](unit.yaml)
+- **Depende de:** {{depends_on_text}}
+
+API gerada por `uv run dev new app` a partir de `tooling/templates/fastapi-api`.
+
+## Rodar
+
+```bash
+uv sync
+uv run uvicorn --factory {{import}}.main:create_app --reload
+uv run pytest {{rel_dir}}/tests -q
+docker build -f {{rel_dir}}/Dockerfile -t {{id}} .   # da raiz do monorepo
+```
+
+## O que vem pronto
+
+| Peça | Onde | Por quê |
+| --- | --- | --- |
+| App factory | `main.py` (`create_app`) | A configuração é lida quando o app nasce, não no import, e cada teste monta o seu |
+| `/health` | `main.py` | Liveness. Não olha dependência: banco fora do ar não deve reiniciar a API |
+| `/ready` | `main.py` (`readiness_checks`) | Readiness. Devolve 503 se alguma checagem falhar ou explodir |
+| Settings tipados | `settings.py` | Único módulo que lê ambiente, pelo `revold_platform.configuration` |
+| Correlation id | `logging_setup.py` | `X-Correlation-ID` entra ou é gerado, vai em toda linha de log e volta na resposta |
+| Teste de fumaça | `tests/` | Health, ready e correlation id |
+| `Dockerfile` | aqui | `uv sync --package`: só esta API e o fecho dela |
+
+## Onde mexer
+
+- Rotas novas: um `APIRouter` por recurso, incluído em `create_app`.
+- Dependência externa (banco, fila): o adapter entra por `create_app` e ganha uma checagem em
+  `readiness_checks`.
+- Variável de ambiente nova: um campo em `Settings`, lido em `load_settings()`.
