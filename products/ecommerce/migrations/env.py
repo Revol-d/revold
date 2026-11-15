@@ -15,7 +15,10 @@ from sqlalchemy import engine_from_config, pool
 from revold_ecommerce.adapters.database import metadata as target_metadata
 
 config = context.config
-if config.config_file_name is not None:
+# O `fileConfig` desliga todos os loggers que já existem no processo. Na linha de comando isso
+# não importa; dentro do pytest (o teste que confere as migrações), os testes que leem log
+# depois dele passavam a ver o log vazio. Quem chama o Alembic por código pede para não mexer.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
 

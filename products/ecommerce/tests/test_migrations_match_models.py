@@ -16,6 +16,7 @@ isso, pula, como os outros testes `integration`. No CI roda contra o Postgres do
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -86,7 +87,19 @@ def _differences(url: str) -> list:
 def test_migrations_build_exactly_what_the_models_describe(empty_database: str) -> None:
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "products/ecommerce/migrations"))
+    # Sem isto, o `env.py` reconfigura o logging do processo do pytest e desliga os loggers
+    # que já existem: um teste que lê log e roda depois deste passa a ver o log vazio.
+    config.attributes["configure_logger"] = False
+    loggers = [
+        logger
+        for logger in logging.root.manager.loggerDict.values()
+        if isinstance(logger, logging.Logger) and not logger.disabled
+    ]
+
     command.upgrade(config, "head")
+
+    disabled = sorted(logger.name for logger in loggers if logger.disabled)
+    assert not disabled, f"o upgrade desligou loggers do processo do pytest: {disabled}"
 
     differences = _differences(empty_database)
 

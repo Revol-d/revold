@@ -952,6 +952,7 @@ plataforma. Modelos: [tooling/README.md](tooling/README.md).
 | Aprovação sumiu | push novo derruba aprovação | peça a revisão de novo |
 | `release.yml`: "nao e o que o BOM aprovou" | a `main` andou entre o `dev release` e o merge | refaça o `dev release` a partir da `main` atual |
 | `test_migrations_match_models`: "o banco migrado e os modelos divergem" | mudou um modelo sem migração (ou o contrário), ou a tabela nova não está em `revold_ecommerce.adapters.database` | gere a migração com `--autogenerate` (seção 9.3), leia, e commite junto; a lista do erro é o que falta |
+| Teste que confere log vê o log vazio, só no CI ou só numa ordem de execução | algo chamou `logging.config.fileConfig` no processo do pytest antes dele (o `env.py` do Alembic chama), e isso desliga todo logger que já existia | ao chamar o Alembic por código, passe `config.attributes["configure_logger"] = False` |
 | `pytest -m integration` trava no Windows, sem saída | há um Redis alcançável e o teste do worker subiu um Celery com pool `prefork` | encerre o processo, derrube o Redis (`docker compose stop redis`) ou rode em container |
 | `pnpm -r build` falha com `ENOENT ... rename` no Windows | `pnpm -r` inclui a raiz, cujo script chama `pnpm -r` de novo: cada site builda duas vezes ao mesmo tempo | use `pnpm build` e `pnpm lint` (os scripts da raiz) |
 | PowerShell: "executar software de fornecedor não confiável" | política `AllSigned` | seção 2.1 e a [nota do Windows](docs/kb/ambiente-local-no-windows.md) |
