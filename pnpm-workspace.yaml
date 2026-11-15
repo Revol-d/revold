@@ -1,4 +1,4 @@
 packages:
-  - "apps/storefront"
-  - "apps/admin-dashboard"
-  - "packages/*"
+  - "apps/ecommerce/storefront"
+  - "apps/ecommerce/admin-dashboard"
+  - "libs/web/*"

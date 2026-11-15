@@ -1,0 +1,49 @@
+# Configuracao do repositorio que nao pertence a nenhuma unidade. Lida pelo `revold_tooling`.
+#
+# Mudanca aqui muda o CODEOWNERS gerado e o calculo de afetados: rode `uv run dev gen` depois.
+
+# Onde procurar `unit.yaml`.
+unit_roots: [apps, products, libs]
+
+# Donos de tudo o que nenhuma unidade cobre (a linha `*` do CODEOWNERS).
+default_owners: ["@SamuelSMatos", "@dmourans"]
+
+# Dono da plataforma: os gates, o tooling, o deploy e TODOS os `unit.yaml`
+# (ADR-0030: ninguem se poe como dono de uma unidade e aprova o proprio PR).
+platform_owners: ["@SamuelSMatos", "@dmourans"]
+
+platform_paths:
+  - /.github/
+  - /scripts/
+  - /tooling/
+  - /deploy/
+  - /.releases/
+  - /.importlinter
+  - /.pre-commit-config.yaml
+  - /pyproject.toml
+  - /uv.lock
+  - /docker-compose.yml
+  - /Makefile
+
+affected:
+  # Mudanca nestes caminhos afeta TODAS as unidades: muda o ambiente, o gate ou a suite central.
+  global:
+    - pyproject.toml
+    - uv.lock
+    - .python-version
+    - .importlinter
+    - tooling/
+    - .github/workflows/
+    - tests/
+    - alembic.ini
+    # O deploy e o BOM de release valem para todo app.
+    - deploy/
+    - .releases/
+    - docker-compose.yml
+  # Caminhos fora de unidade que pertencem a uma unidade.
+  paths:
+    # O workspace pnpm: mudar a versao do Node ou do lock afeta a lib web e o painel (que nao
+    # depende da lib) e, pelo fecho reverso da lib, a loja.
+    package.json: [ui, admin-dashboard]
+    pnpm-lock.yaml: [ui, admin-dashboard]
+    pnpm-workspace.yaml: [ui, admin-dashboard]

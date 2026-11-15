@@ -1,0 +1,18 @@
+"""App Celery (composition root): monta os adapters e registra as tarefas.
+
+A regra de negocio nao mora aqui: cada tarefa chama um caso de uso do produto ou de um dominio.
+"""
+
+from __future__ import annotations
+
+from celery import Celery
+
+from {{import}} import settings
+
+celery_app = Celery("{{import}}", broker=settings.broker_url())
+
+
+@celery_app.task(name="{{import}}.ping")
+def ping() -> str:
+    """Tarefa de exemplo. Troque pela primeira tarefa de verdade."""
+    return "pong"

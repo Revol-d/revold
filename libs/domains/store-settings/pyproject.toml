@@ -1,0 +1,18 @@
+[project]
+name = "revold-store-settings"
+version = "0.1.0"
+description = "Configuração da loja editável pelo admin: dados cadastrais e limiar de estoque baixo."
+requires-python = ">=3.12"
+# Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
+dependencies = [
+    "revold-postgres",
+    "pydantic>=2.9,<3",
+    "sqlalchemy>=2.0.35,<3",
+]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/revold_store_settings"]

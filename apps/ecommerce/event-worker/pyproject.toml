@@ -1,0 +1,23 @@
+[project]
+name = "event-worker"
+version = "0.1.0"
+description = "Worker Celery que consome os eventos de domínio da loja (composition root)."
+requires-python = ">=3.12"
+# Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
+dependencies = [
+    "revold-ai-assistant",
+    "revold-catalog",
+    "revold-ecommerce",
+    "revold-messaging",
+    "revold-notification",
+    "revold-platform",
+    "revold-postgres",
+    "celery>=5.4,<6",
+]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/event_worker"]

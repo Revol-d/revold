@@ -1,0 +1,16 @@
+"""Configuracao do app. E o UNICO modulo do app que le configuracao do ambiente.
+
+Le pelo `revold_platform.configuration` (um parser so), e na CHAMADA de cada funcao, nunca no
+import. As unidades de libs/ e o produto recebem configuracao por parametro.
+"""
+
+from __future__ import annotations
+
+from revold_platform.configuration import env_str
+
+_DEV_BROKER_URL = "redis://localhost:6379/0"
+
+
+def broker_url() -> str:
+    """Broker do Celery. O padrao so vale em desenvolvimento local, fora do Compose."""
+    return env_str("REDIS_URL", _DEV_BROKER_URL) or _DEV_BROKER_URL

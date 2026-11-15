@@ -1,0 +1,27 @@
+# Normalizacao de fim de linha.
+#
+# O repositorio e LF no indice. Sem este arquivo vale o `core.autocrlf` de cada maquina: no
+# Windows com `autocrlf=true`, a copia de trabalho vira CRLF, e todo arquivo que uma ferramenta
+# grava em LF (o `uv run dev gen`, por exemplo) passa a ter fim de linha diferente dos vizinhos.
+#
+# `eol=lf` fixa LF nos dois lados e tem precedencia sobre a configuracao de cada maquina, entao o
+# comportamento passa a ser o mesmo para todo mundo do time.
+* text=auto eol=lf
+
+# Excecao: `.bat` e `.cmd` dependem de CRLF no Windows.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binarios: nenhuma conversao, nunca. Sem isto o Git pode corromper o arquivo ao "normalizar"
+# bytes que so parecem quebra de linha.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.whl binary
+*.zip binary

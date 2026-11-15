@@ -1,0 +1,150 @@
+# Release por app (ADR-0028, ADR-0029).
+#
+# GATILHO. O PR do release (`uv run dev release <app> <parte>`) traz o bump do app e o BOM em
+# `.releases/<app>.json`. Quando ele entra na `main`, este workflow:
+#
+#   1. confere o BOM contra o codigo que entrou (`dev verify-release`): a versao e o sha256 do
+#      `src/` de cada unidade do fecho, e o sha256 do uv.lock. Diferenca aqui e codigo que nao
+#      e o que o PR de release aprovou, e o release para;
+#   2. cria a tag `<app>@<versao>`. So o GitHub Actions cria essas tags: o ruleset
+#      `tags-de-release` (scripts/setup-rulesets.sh) recusa qualquer outra pessoa;
+#   3. publica o GitHub Release com o BOM;
+#   4. monta a imagem do app e, se a publicacao estiver ligada, envia ao registro.
+#
+# A tag NAO e o gatilho, de proposito: tag criada com o GITHUB_TOKEN nao dispara outro
+# workflow, e quem cria a tag e este. Ele e o dono do ciclo inteiro.
+#
+# PUBLICACAO DA IMAGEM. Desligada por padrao. O job `image` so envia a imagem ao registro
+# com a variavel de repositorio `IMAGE_PUBLISH_ENABLED=true`; sem ela, a imagem e montada (o
+# que prova que o release e montavel) e descartada. O destino e o GitHub Container Registry
+# (`ghcr.io/<dono>/<repo>/<app>`), com o GITHUB_TOKEN. Levar a imagem ao Azure Container
+# Registry e atualizar o Container App (ADR-0004) ainda e manual: ver deploy/README.md e o
+# CONTRIBUTING.md, secao 13.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.releases/*.json']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Apps com release novo
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.find.outputs.apps }}
+      any: ${{ steps.find.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: BOMs alterados neste push, sem tag ainda
+        id: find
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          apps="[]"
+          for file in $(git diff --name-only "$BEFORE" "$GITHUB_SHA" -- '.releases/*.json'); do
+            [ -f "$file" ] || continue
+            app="$(jq -r .app "$file")"
+            versao="$(jq -r .versao "$file")"
+            if [ "$app" = "null" ] || [ "$versao" = "null" ]; then
+              echo "::notice::$file nao e um BOM de release; ignorado."
+              continue
+            fi
+            if git rev-parse -q --verify "refs/tags/$app@$versao" >/dev/null; then
+              echo "::notice::$app@$versao ja existe; nada a fazer."
+              continue
+            fi
+            apps="$(echo "$apps" | jq -c --arg a "$app" '. + [$a]')"
+          done
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          echo "any=$([ "$apps" = "[]" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
+          echo "apps: $apps"
+
+  release:
+    name: Release ${{ matrix.app }}
+    needs: [plan]
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.plan.outputs.apps) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Instalar o workspace
+        run: uv sync --frozen
+
+      - name: O codigo da main e o que o BOM aprovou
+        run: uv run dev verify-release "${{ matrix.app }}"
+
+      - name: Tag e GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          versao="$(jq -r .versao ".releases/${{ matrix.app }}.json")"
+          tag="${{ matrix.app }}@$versao"
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+          {
+            echo "Release de \`${{ matrix.app }}\` $versao, commit $GITHUB_SHA."
+            echo
+            echo "| unidade | versao | sha256 do src/ |"
+            echo "| --- | --- | --- |"
+            jq -r '.unidades[] | "| \(.unidade) | \(.versao) | `\(.sha256)` |"' ".releases/${{ matrix.app }}.json"
+            echo
+            echo "uv.lock: \`$(jq -r .lock_sha256 ".releases/${{ matrix.app }}.json")\`"
+          } > notes.md
+          gh release create "$tag" ".releases/${{ matrix.app }}.json" --title "$tag" --notes-file notes.md
+
+  image:
+    name: Imagem ${{ matrix.app }}
+    needs: [plan, release]
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.plan.outputs.apps) }}
+    env:
+      PUBLISH: ${{ vars.IMAGE_PUBLISH_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Montar a imagem do release
+        id: build
+        run: |
+          versao="$(jq -r .versao ".releases/${{ matrix.app }}.json")"
+          imagem="ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')/${{ matrix.app }}"
+          docker build --target runtime -f "apps/ecommerce/${{ matrix.app }}/Dockerfile" \
+            -t "$imagem:$versao" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$versao" .
+          echo "ref=$imagem:$versao" >> "$GITHUB_OUTPUT"
+      - name: Publicar no registro
+        if: env.PUBLISH == 'true'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "${{ steps.build.outputs.ref }}"
+          echo "Publicada: ${{ steps.build.outputs.ref }}"
+      - name: Publicacao desligada
+        if: env.PUBLISH != 'true'
+        run: echo "::notice::Imagem montada e nao publicada. Ligue com a variavel de repositorio IMAGE_PUBLISH_ENABLED=true."

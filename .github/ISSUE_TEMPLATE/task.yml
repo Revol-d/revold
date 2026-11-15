@@ -1,0 +1,97 @@
+name: Tarefa
+description: Uma unidade de trabalho — feature, refactor, documentação ou chore
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sem emojis. Não credite IA como autora (divulgar uso de IA é permitido).
+        Nunca cole segredo: valor de variável de ambiente, credencial, token, connection string,
+        caminho absoluto de máquina ou e-mail. Cite o nome da variável, nunca o valor.
+
+        Uma issue rende um PR, e um PR toca **uma unidade**. Se a tarefa toca várias, quebre em várias issues.
+  - type: dropdown
+    id: unidade
+    attributes:
+      label: Unidade
+      description: >-
+        A unidade que esta tarefa altera, pelo id do `unit.yaml`. `uv run dev version` lista todas.
+      options:
+        - api-gateway (app)
+        - event-worker (app)
+        - catalog-indexer (app)
+        - storefront (app, site)
+        - admin-dashboard (app, site)
+        - ecommerce (produto)
+        - ai-assistant
+        - cart
+        - catalog
+        - communication
+        - identity
+        - inventory
+        - notification
+        - orders
+        - payments
+        - store-settings
+        - platform
+        - postgres
+        - redis
+        - messaging
+        - prometheus
+        - smtp
+        - whatsapp
+        - mercado-pago
+        - openai
+        - azure-blob
+        - ui (web)
+        - tooling
+        - plataforma (CI, scripts, deploy, docs, gates)
+        - nao sei
+    validations:
+      required: true
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo
+      options:
+        - feat
+        - fix
+        - chore
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+      description: O que se quer alcançar, em uma ou duas frases.
+    validations:
+      required: true
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto e motivação
+      description: Por que isto é necessário agora. Aponte a decisão (ADR), a nota de KB ou a discussão que originou a tarefa.
+  - type: textarea
+    id: escopo
+    attributes:
+      label: Escopo
+      value: |
+        - Dentro do escopo:
+        - Fora do escopo:
+  - type: textarea
+    id: aceite
+    attributes:
+      label: Critérios de aceite
+      description: Frases que alguém consegue conferir com sim ou não.
+      value: |
+        - [ ] ...
+        - [ ] Gate verde (`uv run dev check`), se mexe em código
+        - [ ] Testes cobrindo a mudança (`uv run dev test --affected -q`), se aplicável
+        - [ ] Versão da unidade subiu, se o `src/` dela mudou e algum app que a usa já tem release
+    validations:
+      required: true
+  - type: textarea
+    id: notas
+    attributes:
+      label: Notas adicionais
+      description: Riscos, dependências ou alternativas consideradas.

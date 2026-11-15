@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Core Orders API
+  version: "1.0.0"
+  description: >
+    Contrato do core-orders (Contract-First, ver ADR-0002, ADR-0023). Um
+    pedido é criado automaticamente no checkout do carrinho (ver
+    products/ecommerce/contracts/api/cart.yaml, POST /{cart_id}/checkout) — não há endpoint de
+    criação aqui. Este contrato cobre consulta e as transições de status
+    (confirmação manual de pagamento e fulfillment), pré-requisito de
+    core-payments (próxima onda).
+servers:
+  - url: /api/orders
+paths:
+  /:
+    get:
+      operationId: listOrders
+      summary: Lista pedidos, mais recentes primeiro — opcionalmente filtrados por payment_status.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: payment_status
+          in: query
+          schema: { $ref: "#/components/schemas/PaymentStatus" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderPage" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF ou ADMIN exigido
+  /{order_id}:
+    get:
+      operationId: getOrder
+      summary: >
+        Consulta um pedido por id — sem RBAC de propósito, order_id
+        funciona como token de capacidade (mesmo padrão de cart_id).
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: Pedido não encontrado
+  /{order_id}/payment-status:
+    patch:
+      operationId: updatePaymentStatus
+      summary: >
+        Confirma (mark_paid) ou cancela (cancel) manualmente um pedido
+        PENDING. Quando core-payments existir, um webhook do gateway chama
+        os mesmos casos de uso internamente, sem mudar este contrato.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [mark_paid, cancel] }
+      responses:
+        "200":
+          description: Status atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF ou ADMIN exigido
+        "404":
+          description: Pedido não encontrado
+        "422":
+          description: Transição inválida para o status atual do pedido
+  /{order_id}/fulfillment-status:
+    patch:
+      operationId: updateFulfillmentStatus
+      summary: Marca um pedido pago como enviado (mark_shipped) ou entregue (mark_delivered).
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [mark_shipped, mark_delivered] }
+      responses:
+        "200":
+          description: Status atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "401":
+          description: Sem sessão válida
+        "403":
+          description: Papel STAFF ou ADMIN exigido
+        "404":
+          description: Pedido não encontrado
+        "422":
+          description: "Transição inválida (ex.: enviar antes de pago)"
+
+components:
+  schemas:
+    PaymentStatus:
+      type: string
+      enum: [pending, paid, cancelled]
+    FulfillmentStatus:
+      type: string
+      enum: [pending, shipped, delivered]
+    OrderLine:
+      type: object
+      required: [sku, product_name, variant_label, unit_price, quantity, subtotal]
+      properties:
+        sku: { type: string }
+        product_name: { type: string }
+        variant_label: { type: string }
+        unit_price: { type: string }
+        quantity: { type: integer }
+        subtotal: { type: string }
+    Order:
+      type: object
+      required:
+        [order_id, cart_id, lines, total, currency, payment_status, fulfillment_status, created_at]
+      properties:
+        order_id: { type: string }
+        cart_id: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/OrderLine" }
+        total: { type: string }
+        currency: { type: string }
+        payment_status: { $ref: "#/components/schemas/PaymentStatus" }
+        fulfillment_status: { $ref: "#/components/schemas/FulfillmentStatus" }
+        created_at: { type: string }
+    OrderPage:
+      type: object
+      required: [items, page, page_size, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Order" }
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer }

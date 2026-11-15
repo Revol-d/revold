@@ -1,0 +1,27 @@
+"""Configuracao do app. E o UNICO modulo do app que le configuracao do ambiente.
+
+Le pelo `revold_platform.configuration` (um parser so), e na CHAMADA de `load_settings()`,
+nunca no import. As unidades de libs/ e o produto recebem configuracao por parametro.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from revold_platform.configuration import env_str
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Configuracao resolvida na partida da API."""
+
+    service_name: str = "{{id}}"
+    log_level: str = "INFO"
+
+
+def load_settings() -> Settings:
+    """Le o ambiente e devolve a configuracao da API."""
+    return Settings(
+        service_name=env_str("SERVICE_NAME", "{{id}}") or "{{id}}",
+        log_level=(env_str("LOG_LEVEL", "INFO") or "INFO").upper(),
+    )

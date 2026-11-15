@@ -1,69 +1,105 @@
-# Guia de Desenvolvimento
+# A pilha local e a estratégia de testes
 
-## Pré-requisito único: Docker
-Por decisão de arquitetura (ADR-0009), todo o desenvolvimento local roda em containers Docker — a máquina de quem desenvolve só precisa ter Docker instalado (Docker Desktop no Windows/Mac, ou Docker Engine no Linux). A versão de Python/Node da máquina não importa: o Dockerfile de cada app fixa Python 3.12 / Node 20, os mesmos usados em CI e produção.
+> O passo a passo de trabalho (ferramentas, branch, commit, PR, release) é o
+> [CONTRIBUTING.md](../../CONTRIBUTING.md). Este guia detalha duas coisas que lá aparecem em resumo:
+> a pilha que roda em container e o que cada camada de teste cobre.
 
-## Primeiros passos
-1. `cp .env.example .env`
-2. `make dev` — builda as imagens (primeira vez) e sobe Postgres, Redis, api-gateway (com reload), `worker` (consumidor de eventos, ADR-0013), Prometheus, Grafana e storefront (com hot reload) via `docker compose`.
-3. `make migrate` (em outro terminal, com os serviços já de pé) — aplica as migrações Alembic dentro do container do api-gateway.
-4. `make seed` — popula um banco vazio com um catálogo semântico (6 categorias, 21 produtos, estoque, configuração da loja). Sem este passo o storefront sobe, mas toda página de listagem fica vazia — não dá pra avaliar como o site fica de verdade (ver ADR-0022). Seguro rodar de novo a qualquer momento: nunca duplica nem sobrescreve dado já existente.
-5. Storefront em http://localhost:3000, API em http://localhost:8000 (docs automáticas em `/docs`, geradas pelo FastAPI), admin-dashboard em http://localhost:3001, Prometheus em http://localhost:9090, Grafana em http://localhost:3002 (login anônimo habilitado, só em dev).
+## Onde cada coisa roda
 
-## Convenção de portas e adapters
-Todo core define portas (interfaces Python, `Protocol` ou ABC) para qualquer dependência externa (banco, fila, serviço de terceiro). Adapters implementam essas portas em `adapters/`. Um adapter de desenvolvimento ("fake"/"sandbox") deve existir para qualquer integração externa que ainda não tenha credencial real disponível (ex.: `core-identity` antes de ter app registration do Azure AD/Google, checkout antes da WhatsApp Business API oficial) — isso permite construir e testar o sistema inteiro mesmo com liberações externas pendentes. A troca entre adapter de desenvolvimento e adapter real é sempre configuração (variável de ambiente), nunca mudança de código no core.
+Desde a [ADR-0031](../kb/decisoes/0031-gates-na-maquina-pilha-em-container.md), há dois lugares:
 
-## Rodando comandos (sempre via Docker — ADR-0009)
-- Testes: `make test` (ou `make test-unit`, `make test-integration`, `make test-contract`, `make test-eval` — ver ADR-0012 para o que cada camada cobre e quando pula sozinha em vez de falhar)
-- Lint: `make lint`
-- Formatação: `make format`
-- Nunca rodar `poetry run`/`pnpm` direto na máquina — os `Makefile` targets já encapsulam o `docker compose run` correto.
+| O quê | Onde | Como |
+|---|---|---|
+| Gates: manifesto, fronteiras, tipos, lint, testes sem infraestrutura | na máquina | `uv run dev check`, `uv run dev test`, `uv run ruff check .`, e os hooks |
+| A pilha: banco, fila, API, worker, sites, métricas | em container | `make dev` |
+| Migrações, seed, testes de integração e E2E | em container, ou na máquina apontando para o banco em container | `make migrate`, `make seed`, `make test-integration`, `make test-e2e` |
+
+A [ADR-0009](../kb/decisoes/0009-docker-first-para-desenvolvimento-local.md) mandava rodar **tudo**
+em container. Os alvos do [Makefile](../../Makefile) continuam fazendo isso, para quem preferir.
+
+## Primeiros passos com a pilha
+
+1. `Copy-Item .env.example .env`
+2. `make dev`: monta as imagens (na primeira vez) e sobe Postgres, Redis, o api-gateway (com
+   reload), o `worker` (o event-worker, [ADR-0013](../kb/decisoes/0013-core-events-e-barramento-de-eventos.md)),
+   Prometheus, Grafana, a loja e o painel.
+3. `make migrate` (em outro terminal, com os serviços já de pé): aplica as migrações Alembic dentro
+   do container do api-gateway.
+4. `make seed`: popula um banco vazio com um catálogo coerente, estoque e a configuração da loja.
+   Sem este passo a loja sobe, mas toda página de listagem fica vazia, sem erro nenhum
+   ([ADR-0022](../kb/decisoes/0022-processo-padrao-de-seed-semantico.md)). Seguro rodar de novo:
+   nunca duplica nem sobrescreve dado que já existe.
+5. Loja em http://localhost:3000, API em http://localhost:8000 (documentação em `/docs`), painel em
+   http://localhost:3001, Prometheus em http://localhost:9090, Grafana em http://localhost:3002
+   (login anônimo, só em desenvolvimento).
+
+Trocou dependência ou criou unidade? Refaça a imagem (`make setup`): o `docker compose run`
+reaproveita a imagem velha sem avisar.
+
+## Portas, adapters e o adapter de desenvolvimento
+
+Todo domínio declara portas (`Protocol`) para qualquer dependência externa, e os adapters que as
+implementam moram na camada `adapters/` do próprio domínio ([docs/ARQUITETURA.md](../ARQUITETURA.md),
+seção 4). **Toda integração externa tem um adapter de desenvolvimento** (fake, log ou disco local)
+além do real, para o sistema inteiro rodar e ser testado antes de existir credencial:
+
+| Assunto | Variável | Desenvolvimento | Real |
+|---|---|---|---|
+| Login | `AUTH_PROVIDER` | `dev` | `azure-ad`, `google` (ainda sem adapter, [ADR-0003](../kb/decisoes/0003-autenticacao-federada-sem-senha-propria.md)) |
+| LLM | `LLM_PROVIDER` | `dev` | `azure-openai`, `deepseek` ([ADR-0011](../kb/decisoes/0011-escopo-do-assistente-de-ia.md), [ADR-0026](../kb/decisoes/0026-deepseek-como-llm-provider-de-chat-embeddings-continuam-na-azure.md)) |
+| Pagamento | `PAYMENT_PROVIDER` | `fake` | `mercado_pago`, só Pix ([ADR-0024](../kb/decisoes/0024-core-payments-pix-e-cartao.md)) |
+| Notificação | `NOTIFICATION_PROVIDER` | `logging` | `smtp`, `whatsapp-business` ([ADR-0018](../kb/decisoes/0018-canal-de-notificacao-email-smtp.md), [ADR-0025](../kb/decisoes/0025-whatsapp-business-notification-channel.md)) |
+| Imagem de produto | `MEDIA_STORAGE_PROVIDER` | `local` | `azure-blob` ([ADR-0015](../kb/decisoes/0015-media-blob-storage.md)) |
+| Eventos | `EVENT_PUBLISHER` | `memory` | `celery` ([ADR-0013](../kb/decisoes/0013-core-events-e-barramento-de-eventos.md)) |
+| Webhook de saída | `WEBHOOK_SENDER_PROVIDER` | `logging` | `http` ([ADR-0016](../kb/decisoes/0016-api-key-rate-limit-webhook-outbound.md)) |
+
+A lista completa, com o significado de cada variável, é o [.env.example](../../.env.example).
 
 ## Estratégia de testes (ADR-0012)
-Quatro camadas, cada teste marcado com `@pytest.mark.<nome>` (registrados em `pyproject.toml`) exceto a unitária, que é o padrão sem marker nenhum:
-- **Unitário**: lógica pura ou contra fake em memória — roda sempre.
-- **Fábricas de dados** (`revold_testing`, `tools/testing/`): Factory Boy + Faker (`pt_BR`) para gerar dado realista (acento, emoji, preço quebrado) em vez de só fixture manual — usadas dentro dos testes unitários/integração, não é uma camada à parte. Um módulo por core (`catalog_factories`, `cart_factories`, `inventory_factories`, `identity_factories`, `notification_factories`, `store_settings_factories`, `events_factories`, ver ADR-0012).
-- **`@pytest.mark.integration`**: contra Postgres/pgvector real, não fake — pula sozinho sem `DATABASE_URL`/`TEST_DATABASE_URL` alcançável. Roda também no CI (service do GitHub Actions), não só localmente.
-- **Sandbox de serviço externo** (`respx`, ou um emulador/servidor real self-hosted): todo adapter real que ainda não tem credencial de produção é validado contra algo que fala o protocolo de verdade, sem credencial nenhuma — `respx` simula a API HTTP do Azure OpenAI; o **Azurite** (emulador oficial da Microsoft) valida o `AzureBlobStorage` (ADR-0015); um worker Celery + Redis reais (subprocesso) validam o barramento de eventos de ponta a ponta (ADR-0013); o **aiosmtpd** (servidor SMTP real, em memória, puro Python) valida o `SmtpNotificationChannel` (ADR-0018).
-- **`@pytest.mark.eval`** (`cores/core-ai-assistant/evals/`): dataset comportamental do assistente de IA. `test_behavior.py` roda sempre (determinístico, sem credencial). `test_llm_judge.py` (LLM-as-judge, nota de qualidade) só roda de verdade com `LLM_PROVIDER=azure-openai` real — pula sozinho caso contrário.
-- **E2E** (`make test-e2e`, ADR-0020): Playwright, contra storefront + api-gateway + Postgres/Redis reais (a stack inteira de `make dev` já de pé) — `apps/storefront/e2e/global-setup.ts` semeia categoria/produto/estoque via chamadas HTTP reais antes da suíte, `checkout.spec.ts` cobre navegar → adicionar ao carrinho → fechar pedido pelo WhatsApp, e busca full-text de ponta a ponta.
 
-## Leafs/adapters adicionados depois do MVP inicial (ADR-0013 a ADR-0018)
+As camadas, cada uma marcada com `@pytest.mark.<nome>` (registrados no `pyproject.toml` da raiz),
+menos a unitária, que é o padrão sem marcador:
 
-Enquanto credenciais de nuvem reais (Azure AD, Google, WhatsApp Business API, Azure OpenAI real) seguem indisponíveis, o framework foi enriquecido com leafs genéricos e reutilizáveis, 100% testados sem nenhuma credencial nova:
+- **Unitário**: regra pura ou contra fake em memória. Roda sempre.
+- **Fábricas de dados** (`revold_testing`, em `tests/support/`): Factory Boy e Faker (`pt_BR`) para
+  gerar dado realista (acento, preço quebrado) em vez de só fixture escrita à mão. Um módulo por
+  domínio. São usadas dentro dos testes; não são uma camada à parte.
+- **`integration`**: contra Postgres com pgvector, Redis ou um servidor de verdade em memória. Pula
+  sozinho sem a infraestrutura alcançável. Roda no CI (com o Postgres do service) e na máquina com
+  o banco em container (CONTRIBUTING, seção 10).
+- **Sandbox de serviço externo**: todo adapter real sem credencial de produção é validado contra
+  algo que fala o protocolo de verdade. `respx` simula a API HTTP do Azure OpenAI, do DeepSeek, do
+  Mercado Pago e da Meta; o **Azurite** (emulador oficial) valida o `AzureBlobStorage`; o `aiosmtpd`
+  valida o envio de e-mail; um worker Celery com Redis valida o round-trip de evento. O sandbox
+  confere o **formato** documentado, não o comportamento real do serviço.
+- **`contract`**: confere o api-gateway contra os contratos OpenAPI em
+  `products/ecommerce/contracts/api/`. Hoje compara a lista de rotas (método e caminho) nas duas
+  direções; os campos de requisição e resposta ainda não são conferidos.
+- **`eval`** (`libs/domains/ai-assistant/evals/`): o dataset comportamental do assistente.
+  `test_behavior.py` roda sempre (determinístico, sem credencial). `test_llm_judge.py` (LLM como
+  juiz, nota de qualidade) só roda com `LLM_PROVIDER=azure-openai` e credencial real, e chama um
+  serviço pago: pula sozinho caso contrário.
+- **E2E** (`make test-e2e`, [ADR-0020](../kb/decisoes/0020-testes-e2e-playwright.md)): Playwright,
+  contra a pilha de `make dev` já de pé, rodando **na máquina** (fora do container), como um
+  cliente. O `global-setup.ts` semeia categoria, produto e estoque por chamadas HTTP reais antes
+  da suíte. Roda também no CI, no job "E2E (Playwright)", quando a loja ou a API são afetadas.
+- **Arquitetura** (`tests/architecture/`): os gates que conferem a estrutura do repositório
+  ([docs/ARQUITETURA.md](../ARQUITETURA.md), seção 7).
 
-- **Barramento de eventos** (`core-events`, ADR-0013): `EventPublisher`/`DomainEvent` centralizados — evita cada core inventar seu próprio formato de evento e cair em problema de deduplicação. `EVENT_PUBLISHER=memory|celery`.
-- **Busca full-text** (ADR-0014): Postgres nativo (`tsvector`+`unaccent`), sem porta nova.
-- **Upload de imagem / blob storage** (`MediaStorage`, ADR-0015): `MEDIA_STORAGE_PROVIDER=local|azure-blob`.
-- **API pública/parceiro** (ADR-0016): `ApiKeyAuth`/`RateLimiter` (`core-identity`) + `WebhookSender` (`core-events`) — `POST/DELETE /api/auth/api-keys` (RBAC ADMIN) para emitir/revogar chave, `GET /api/public/v1/products` como primeiro endpoint protegido por `X-API-Key`.
-- **Observabilidade** (`MetricsPublisher`, `core-observability`, ADR-0017): `GET /metrics` (Prometheus), serviços `prometheus`/`grafana` no compose.
-- **Canal de e-mail** (`SmtpNotificationChannel`, ADR-0018): `NOTIFICATION_PROVIDER=smtp`.
+## Painéis do Grafana (ADR-0017)
 
-Ver `claude/planejamento-leafs-e-adaptadores.md` (Project) para o plano original e `docs/architecture/adr/0013-*.md` a `0018-*.md` para os registros completos.
+http://localhost:3002 já abre com o painel **"Revold — Visão Geral"** carregado: a fonte de dados e
+o painel são provisionados como código (`deploy/observability/grafana/provisioning/`), sem passo
+manual. As métricas vêm do endpoint `/metrics` do api-gateway.
 
-## Configuração da loja e testes E2E (ADR-0019, ADR-0020)
+## Reproduzir o CI na máquina (ADR-0021)
 
-- **Configuração da loja** (`core-store-settings`, ADR-0019): CNPJ, contato, dados da loja e o limiar de estoque baixo (antes só `LOW_STOCK_THRESHOLD`, fixo até deploy) agora são editáveis pela Nick em `/configuracoes` no admin-dashboard (RBAC ADMIN only) — `GET/PUT /api/store-settings`.
-- **Testes E2E** (Playwright, ADR-0020): `make test-e2e` cobre o fluxo real de cliente ponta a ponta. Achado ao implementar: `docker-compose.yml` não carregava `.env` nos containers de `api-gateway`/`worker` (corrigido com `env_file`) e `SESSION_COOKIE_SECURE=true` por padrão quebrava login em `make dev` (sem HTTPS local) — `.env.example` agora usa `false` por padrão, `true` em produção (HTTPS real via Container Apps).
+`uv run dev check` e `uv run dev test` na máquina já rodam os mesmos comandos do CI, no mesmo
+ambiente travado pelo `uv.lock`. Para reproduzir o **runner** (sem `.env`, com o service do
+Postgres):
 
-## Dashboards Grafana (ADR-0017)
+1. Instale o [`act`](https://github.com/nektos/act).
+2. `make ci-local`: roda o `ci.yml` em containers que emulam o runner do GitHub Actions. O `.actrc`
+   usa uma imagem de runner leve.
 
-`http://localhost:3002` já abre com o dashboard **"Revold — Visão Geral"** carregado — datasource Prometheus e dashboard são provisionados como código (`docker/grafana/provisioning/`), sem passo manual de configuração. Três seções: checkouts criados (taxa/min + total), alertas de estoque baixo (taxa/min + total), e API (requisições por status, taxa de erro 5xx, latência p50/p95/p99). Para adicionar um painel novo, editar `docker/grafana/provisioning/dashboards/json/revold-overview.json` (recarregado a cada 30s) em vez de só ajustar pela UI — a UI permite editar (`allowUiUpdates: true`), mas o arquivo do repositório é a fonte de verdade e sobrescreve no próximo reload.
-
-## Seed semântico e módulo `revold_seed` (ADR-0022)
-`make seed` (`docker compose run --rm api-gateway poetry run python -m revold_seed`) é o processo padrão pra popular um banco vazio com dado apresentável — 6 categorias, 21 produtos com variantes/preço/descrição em português, estoque (incluindo casos propositais de "esgotado" e "estoque baixo") e a configuração da loja. Nunca dado aleatório de Faker (isso é `tools/testing`, para teste automatizado) — é conteúdo escrito à mão, pensado pra ser olhado por um humano avaliando o site ou apresentado pra Nick. Idempotente: só cria o que ainda não existe, nunca sobrescreve edição real feita no admin.
-
-Cada core dono de dado de demonstração expõe suas próprias constantes em `cores/core-x/src/core_x/seed.py` (hoje: `core_catalog`, `core_store_settings`) — `tools/seed/src/revold_seed/runner.py` só orquestra a ordem entre eles e persiste através dos repositórios reais, nunca conhece o conteúdo em si. Pra dar seed a um core novo no futuro: escrever o `seed.py` dele nesse mesmo formato e registrar a chamada em `runner.py` — ver ADR-0022 para o raciocínio completo.
-
-## Validando localmente como o CI de verdade valida (ADR-0021)
-
-`make test`/`make lint` rodam dentro do container da própria aplicação (`docker compose run --rm api-gateway ...`) — ótimo pra validar a aplicação como ela roda em produção, mas **não** é a mesma coisa que o job do GitHub Actions (`.github/workflows/ci.yml`), que roda `poetry install`/`poetry run pytest`/`pnpm install`/`pnpm -r lint` direto no runner (`ubuntu-latest`, sem Docker, sem `.env`, usuário sem privilégio de root). Essa diferença deixou passar despercebido, até o primeiro push real disparar o CI, um caminho de arquivo hardcoded que só existia dentro do container (`/app/media`) e uma dependência de lint resolvida só por acidente de hoisting do pnpm — ver ADR-0021 pros dois casos reais.
-
-Pra reproduzir localmente as condições reais do CI antes de dar push:
-1. Instalar o [`act`](https://github.com/nektos/act) (usa o Docker que você já tem por causa da ADR-0009 — não precisa de mais nada).
-2. `make ci-local` — roda os dois jobs de `ci.yml` (`python`, `node`) exatamente como o GitHub Actions os executa, incluindo o service container do Postgres. A configuração em `.actrc` já usa uma imagem de runner leve (`catthehacker/ubuntu:act-latest`) em vez da imagem `-full` (dezenas de GB).
-
-`act` não é 100% idêntico ao runner hospedado da GitHub — é uma aproximação suficiente pra pegar bug de "suposição de ambiente"/"dependência resolvida por acidente" antes do push, não uma garantia absoluta de paridade.
-
-## Convenção de commits
-`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:` — branch a partir de `develop`, PR com quality gates locais rodando antes de abrir.
+O `act` é uma aproximação, não uma garantia de paridade com o runner hospedado.

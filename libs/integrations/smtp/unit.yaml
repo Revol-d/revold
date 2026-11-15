@@ -1,0 +1,9 @@
+# Manifesto da unidade (schema: tooling/schema/unit.schema.json; ADR-0030).
+# Mudou algo aqui? Rode `uv run dev gen` para regenerar .importlinter e CODEOWNERS.
+id: smtp
+kind: integration
+product:
+language: python
+lifecycle: pilot
+owners: ["@SamuelSMatos", "@dmourans"]
+depends_on: []

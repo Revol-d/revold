@@ -1,0 +1,14 @@
+"""Trava a API publica de `{{import}}`: mudar `__all__` exige mudar este teste no mesmo PR."""
+
+import {{import}}
+
+PUBLIC_API: list[str] = ["create_app"]
+
+
+def test_public_api_is_locked():
+    assert sorted({{import}}.__all__) == sorted(PUBLIC_API)
+
+
+def test_every_public_name_exists():
+    missing = [name for name in {{import}}.__all__ if not hasattr({{import}}, name)]
+    assert not missing, f"nomes em __all__ que nao existem: {missing}"

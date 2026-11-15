@@ -1,0 +1,32 @@
+# `{{import}}`
+
+{{description}}
+
+- **Tipo:** app (celery-worker) · **Produto:**{{product}} · **Ciclo de vida:** {{lifecycle}} · **Manifesto:** [unit.yaml](unit.yaml)
+- **Depende de:** {{depends_on_text}}
+
+Worker gerado por `uv run dev new app` a partir de `tooling/templates/celery-worker`.
+
+## Rodar
+
+```bash
+uv sync
+uv run celery -A {{import}}.celery_app worker --loglevel=info
+uv run pytest {{rel_dir}}/tests -q
+```
+
+## O que vem pronto
+
+| Peça | Onde | Por quê |
+| --- | --- | --- |
+| App Celery | `celery_app.py` | O composition root: monta os adapters e registra as tarefas |
+| Settings | `settings.py` | Único módulo que lê ambiente, pelo `revold_platform.configuration` |
+| Teste de fumaça | `tests/` | O app sobe e a tarefa está registrada com o nome público dela |
+
+## Onde mexer
+
+- Tarefa nova: uma função com `@celery_app.task(name="{{import}}.<tarefa>")`. O nome é contrato
+  com quem publica: mudar exige mudar o produtor no mesmo PR.
+- Regra de negócio: não mora aqui. A tarefa só monta os adapters e chama um caso de uso do
+  produto ou de um domínio.
+- Variável de ambiente nova: uma função em `settings.py`.

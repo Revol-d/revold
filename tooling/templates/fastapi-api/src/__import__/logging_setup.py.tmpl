@@ -1,0 +1,35 @@
+"""Log com correlation id: toda linha de log de uma requisicao carrega o id dela.
+
+O id chega no cabecalho `X-Correlation-ID` (quem chama manda o seu e acha a linha depois) ou e
+gerado aqui, e volta na resposta. Mora num `ContextVar`, entao requisicoes concorrentes nao se
+misturam.
+"""
+
+from __future__ import annotations
+
+import logging
+from contextvars import ContextVar
+
+CORRELATION_HEADER = "X-Correlation-ID"
+correlation_id: ContextVar[str] = ContextVar("correlation_id", default="-")
+
+
+class CorrelationIdFilter(logging.Filter):
+    """Poe `record.correlation_id` em toda linha, para o formato poder usar."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Anota a linha e deixa passar."""
+        record.correlation_id = correlation_id.get()
+        return True
+
+
+def configure_logging(level: str) -> None:
+    """Formato com o correlation id. Idempotente: chamar duas vezes nao duplica handler."""
+    root = logging.getLogger()
+    root.setLevel(level)
+    if any(isinstance(f, CorrelationIdFilter) for h in root.handlers for f in h.filters):
+        return
+    handler = logging.StreamHandler()
+    handler.addFilter(CorrelationIdFilter())
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(correlation_id)s] %(name)s: %(message)s"))
+    root.addHandler(handler)

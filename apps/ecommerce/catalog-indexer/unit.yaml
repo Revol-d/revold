@@ -1,0 +1,10 @@
+# Manifesto da unidade (schema: tooling/schema/unit.schema.json; ADR-0030).
+# Mudou algo aqui? Rode `uv run dev gen` para regenerar .importlinter e CODEOWNERS.
+id: catalog-indexer
+kind: app
+product: ecommerce
+language: python
+lifecycle: pilot
+owners: ["@SamuelSMatos", "@dmourans"]
+depends_on: ["ai-assistant", "catalog", "ecommerce", "platform", "postgres"]
+runtime: celery-worker

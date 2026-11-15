@@ -1,0 +1,16 @@
+"""Fumaca do worker: o app sobe e a tarefa esta registrada com o nome publico dela."""
+
+from {{import}} import celery_app, settings
+
+
+def test_task_is_registered_under_its_public_name():
+    assert "{{import}}.ping" in celery_app.celery_app.tasks
+
+
+def test_task_runs_without_a_broker():
+    assert celery_app.ping.run() == "pong"
+
+
+def test_broker_comes_from_settings(monkeypatch):
+    monkeypatch.setenv("REDIS_URL", "redis://broker.example:6379/3")
+    assert settings.broker_url() == "redis://broker.example:6379/3"

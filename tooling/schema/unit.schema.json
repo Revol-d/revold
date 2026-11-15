@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SamuelSMatos/revold/tooling/schema/unit.schema.json",
+  "title": "unit.yaml (schema v1)",
+  "description": "Manifesto de uma unidade do monorepo (ADR-0030). O tooling valida e gera a partir dele o .importlinter, o CODEOWNERS e o grafo de afetados.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind", "language", "lifecycle", "owners", "depends_on"],
+  "properties": {
+    "id": {
+      "description": "Identificador da unidade, em kebab-case. E o que aparece em depends_on, nas labels unidade:<id> e no dev affected.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "kind": {
+      "enum": ["app", "product", "platform", "integration", "capability", "domain", "web"]
+    },
+    "product": {
+      "description": "Produto dono. Obrigatorio em app e product; vazio em libs/.",
+      "type": ["string", "null"],
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "language": {
+      "enum": ["python", "typescript"]
+    },
+    "lifecycle": {
+      "enum": ["production", "pilot", "prototype", "deprecated"]
+    },
+    "owners": {
+      "description": "Donos no GitHub (usuario ou time). Geram o CODEOWNERS.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^@[A-Za-z0-9-]+(/[A-Za-z0-9._-]+)?$"
+      }
+    },
+    "depends_on": {
+      "description": "Ids das unidades de que esta depende diretamente.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      }
+    },
+    "stages": {
+      "description": "So em domain e product: as etapas de application/, de cima para baixo, num contrato layers. Etapas na mesma linha separadas por ' | ' sao independentes (nenhuma importa a outra).",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z_][a-z0-9_]*( [|] [a-z_][a-z0-9_]*)*$"}
+    },
+    "pure_modules": {
+      "description": "So em integration: submodulos sem I/O (modelos, contratos, funcoes puras) que a camada application e ports de dominio e produto podem importar. O resto da integracao so entra por adapters/.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z_][a-z0-9_]*$"}
+    },
+    "runtime": {
+      "description": "Tipo de execucao. So em app.",
+      "enum": ["fastapi-api", "celery-worker", "cli", "next-web", null]
+    },
+    "data": {
+      "description": "So em quem grava dado.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "tables_owned": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

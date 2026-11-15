@@ -1,0 +1,38 @@
+"""Fumaca da API: sobe, responde /health e /ready e devolve o correlation id."""
+
+from fastapi.testclient import TestClient
+from {{import}}.main import create_app
+from {{import}}.settings import Settings
+
+
+def _client(**checks):
+    return TestClient(create_app(Settings(service_name="teste"), readiness_checks=checks))
+
+
+def test_health_is_ok_without_looking_at_dependencies():
+    response = _client(banco=lambda: False).get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "service": "teste"}
+
+
+def test_ready_is_200_when_every_check_passes():
+    assert _client(banco=lambda: True).get("/ready").status_code == 200
+
+
+def test_ready_is_503_when_a_check_fails():
+    response = _client(banco=lambda: True, fila=lambda: False).get("/ready")
+    assert response.status_code == 503
+    assert response.json()["checks"] == {"banco": True, "fila": False}
+
+
+def test_ready_treats_exploding_check_as_failed():
+    def boom():
+        raise RuntimeError("fora do ar")
+
+    assert _client(banco=boom).get("/ready").status_code == 503
+
+
+def test_correlation_id_is_echoed_or_generated():
+    client = _client()
+    assert client.get("/health", headers={"X-Correlation-ID": "abc"}).headers["X-Correlation-ID"] == "abc"
+    assert len(client.get("/health").headers["X-Correlation-ID"]) == 32

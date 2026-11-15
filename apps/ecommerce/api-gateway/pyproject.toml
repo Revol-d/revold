@@ -1,0 +1,39 @@
+[project]
+name = "api-gateway"
+version = "0.1.0"
+description = "API HTTP da loja (composition root): rotas FastAPI sobre os domínios e o produto."
+requires-python = ">=3.12"
+# Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
+dependencies = [
+    "revold-ai-assistant",
+    "revold-cart",
+    "revold-catalog",
+    "revold-communication",
+    "revold-ecommerce",
+    "revold-identity",
+    "revold-inventory",
+    "revold-messaging",
+    "revold-notification",
+    "revold-orders",
+    "revold-payments",
+    "revold-platform",
+    "revold-postgres",
+    "revold-prometheus",
+    "revold-redis",
+    "revold-store-settings",
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.30.6,<0.31",
+    "python-multipart>=0.0.32,<0.1",
+    "prometheus-client>=0.26,<0.27",
+    "redis>=5.0.8,<6",
+    "sqlalchemy>=2.0.35,<3",
+    "alembic>=1.13.3,<2",
+    "psycopg2-binary>=2.9.9,<3",
+]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/api_gateway"]

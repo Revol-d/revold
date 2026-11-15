@@ -1,0 +1,14 @@
+[project]
+name = "revold-mercado-pago"
+version = "0.1.0"
+description = "Cliente do Mercado Pago: cria e consulta pagamento e confere a assinatura do webhook."
+requires-python = ">=3.12"
+# Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
+dependencies = ["httpx>=0.27.2,<0.28"]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/revold_mercado_pago"]
