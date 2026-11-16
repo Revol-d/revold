@@ -140,7 +140,10 @@ aplicar_ruleset "tags-de-release" "$RULESET_TAGS"
 # foram aplicados, e o aviso diz o que ligar na mao (Settings -> Code security).
 if [ "$apply" -eq 1 ]; then
   echo "Ligando secret scanning e push protection..."
-  gh api --method PATCH "repos/$repo" \n    -f 'security_and_analysis[secret_scanning][status]=enabled' \n    -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled' >/dev/null \n    || echo "AVISO: nao consegui ligar pela API. Ligue em Settings -> Code security: 'Secret scanning' e 'Push protection'."
+  gh api --method PATCH "repos/$repo" \
+    -f 'security_and_analysis[secret_scanning][status]=enabled' \
+    -f 'security_and_analysis[secret_scanning_push_protection][status]=enabled' >/dev/null \
+    || echo "AVISO: nao consegui ligar pela API. Ligue em Settings -> Code security: 'Secret scanning' e 'Push protection'."
 else
   echo "-- ligaria secret scanning e push protection. Estado atual (so administrador enxerga):"
   gh api "repos/$repo" --jq '.security_and_analysis // "(nao visivel para esta conta)"' || true
