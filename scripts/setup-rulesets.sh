@@ -18,8 +18,9 @@
 #        - exige aprovacao do ultimo push (quem empurrou por ultimo nao se aprova);
 #        - so squash merge, historico linear;
 #        - bloqueia force-push e delecao.
-#   3. Ruleset "tags-de-release" (`*@*`, ex.: `api-gateway@0.2.0`): so o GitHub Actions
-#      cria, move ou apaga essas tags. Quem publica e o workflow de release.
+#   3. Ruleset "tags-de-release" (`*@*`, ex.: `api-gateway@0.2.0`): ninguem cria, move ou
+#      apaga essas tags por fora do workflow de release. O bypass do GitHub Actions (pra ele
+#      publicar a tag com o GITHUB_TOKEN) NAO entra por este script: ver nota mais abaixo.
 #   4. Secret scanning e push protection do GitHub: o GitHub reconhece o formato dos tokens de
 #      centenas de servicos e RECUSA o push que traz um deles. Em repositorio publico e gratis.
 #      E a primeira camada contra segredo commitado; a busca por nome do ci.yml e a segunda
@@ -36,9 +37,18 @@
 #     conferir o ruleset funcionando:
 #       gh api --method DELETE repos/<owner>/<repo>/branches/main/protection
 #
-# O id 15368 abaixo e o app "GitHub Actions". E o ator que pode furar o ruleset de tags,
-# para o workflow de release criar a tag com o GITHUB_TOKEN. Conferir em:
-#   gh api /apps/github-actions --jq .id
+# O ruleset "tags-de-release" nasce SEM bypass actor (lista vazia): isso bloqueia tambem o
+# workflow de release, que precisa criar a tag com o GITHUB_TOKEN. Tentamos primeiro
+# `{"actor_id": 15368, "actor_type": "Integration"}` (15368 e o app "GitHub Actions", o id
+# global que `gh api apps/github-actions --jq .id` devolve) e a API recusou com 422:
+#   "Actor GitHub Actions integration must be part of the ruleset source or owner organization"
+# Esse 422 veio ao aplicar num repo recem-transferido de conta pessoal pra organizacao; o id
+# global do app nao e o mesmo que o id de instalacao por organizacao, e nao achamos um jeito
+# de obter esse id de instalacao por API com um token de usuario (`gh api orgs/<org>/installations`
+# responde vazio pro GitHub Actions nativo). O jeito que funciona: abrir o ruleset no Portal
+# (Settings -> Rules -> Rulesets -> tags-de-release -> Bypass list -> Add bypass -> "GitHub
+# Actions") e deixar o proprio Portal resolver o id certo. E um passo manual, uma vez por
+# repositorio (ou de novo, se o repositorio for transferido de dono outra vez).
 
 set -euo pipefail
 
@@ -95,9 +105,7 @@ read -r -d '' RULESET_TAGS <<'JSON' || true
   "target": "tag",
   "enforcement": "active",
   "conditions": { "ref_name": { "include": ["refs/tags/*@*"], "exclude": [] } },
-  "bypass_actors": [
-    { "actor_id": 15368, "actor_type": "Integration", "bypass_mode": "always" }
-  ],
+  "bypass_actors": [],
   "rules": [
     { "type": "creation" },
     { "type": "update" },
