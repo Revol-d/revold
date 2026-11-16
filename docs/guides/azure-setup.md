@@ -1,6 +1,6 @@
 # Guia de Infraestrutura — Configuração do Azure
 
-Este guia cobre a configuração de **identidade, governança, billing e segurança** no Portal do Azure para o time (hoje duas pessoas: uma focada em infra, outra em análise/refatoração do código). Ele complementa, mas não substitui, ADR-0004 (plataforma de execução) e ADR-0008 (CI/CD) — a regra de lá continua valendo: **nenhum recurso de workload é criado manualmente pelo Portal**, tudo via Terraform (`iac/terraform/`). O Portal entra só para o que não é modelável como recurso de app: usuários, billing, policy, Defender.
+Este guia cobre a configuração de **identidade, governança, billing e segurança** no Portal do Azure para o time (hoje duas pessoas: uma focada em infra, outra em análise/refatoração do código). Ele complementa, mas não substitui, ADR-0004 (plataforma de execução) e ADR-0008 (CI/CD) — a regra de lá continua valendo: **nenhum recurso de workload é criado manualmente pelo Portal**, tudo via Terraform (`deploy/terraform/`). O Portal entra só para o que não é modelável como recurso de app: usuários, billing, policy, Defender.
 
 Cada comando abaixo vem com uma explicação logo depois, linha por linha — a ideia é que dê pra rodar sem ter que adivinhar o que uma flag faz ou copiar sem entender.
 
@@ -10,7 +10,7 @@ Cada comando abaixo vem com uma explicação logo depois, linha por linha — a 
 |---|---|---|
 | **Tenant (Entra ID)** | Diretório de identidade | Separa *organizações*. Não precisa de tenant novo pra separar dev/hml/prod — isso é Resource Group. |
 | **Subscription** | Unidade de billing + boundary de política/RBAC | Opcional pra isolamento mais forte entre ambientes; não necessário no estágio atual. |
-| **Resource Group** | Agrupamento de recursos dentro de uma subscription | É o que `iac/terraform/modules/network/main.tf` já usa (`rg-${project_name}-${environment}`). |
+| **Resource Group** | Agrupamento de recursos dentro de uma subscription | É o que `deploy/terraform/modules/network/main.tf` já usa (`rg-${project_name}-${environment}`). |
 | **Role RBAC** (Contributor, Owner) | Permissão pra *gerenciar recursos* | O que o segundo dev precisa pra criar/gerenciar recursos de dev. |
 | **Role de Billing** (Billing Reader, Account Owner) | Permissão pra *ver/gerenciar custo e pagamento* | Separado do RBAC — Contributor não implica acesso a billing, mas em várias contas o custo fica visível por padrão a menos que isso seja desligado explicitamente (Passo 2). |
 | **Login Entra ID vs. e-mail real** | Entra ID dá uma *conta* (`pessoa@dominio.onmicrosoft.com`), não uma caixa que recebe mensagem | Suficiente pra acesso ao Portal/CLI. E-mail que recebe mensagem de verdade é Microsoft 365/Google Workspace — serviço separado, pago, exige domínio próprio. |
@@ -60,7 +60,7 @@ RBAC e billing são sistemas separados — "ele só tem Contributor" não é suf
 
 ## Passo 3 — Separação de ambientes
 
-Recomendado para o estágio atual (2 pessoas, 1 cliente): **uma subscription**, com os três Resource Groups que o Terraform já cria (`rg-revold-dev`, `rg-revold-staging`, `rg-revold-production` — ver `var.environment` em `iac/terraform/variables.tf`). Ter mais Resource Groups não tem custo. **Não crie esses três RGs manualmente** — o módulo `network` (`iac/terraform/modules/network/main.tf`, recurso `azurerm_resource_group.this`) já faz isso no primeiro `terraform apply`; a única exceção de bootstrap manual é a RG do state remoto, no Passo 6.
+Recomendado para o estágio atual (2 pessoas, 1 cliente): **uma subscription**, com os três Resource Groups que o Terraform já cria (`rg-revold-dev`, `rg-revold-staging`, `rg-revold-production` — ver `var.environment` em `deploy/terraform/variables.tf`). Ter mais Resource Groups não tem custo. **Não crie esses três RGs manualmente** — o módulo `network` (`deploy/terraform/modules/network/main.tf`, recurso `azurerm_resource_group.this`) já faz isso no primeiro `terraform apply`; a única exceção de bootstrap manual é a RG do state remoto, no Passo 6.
 
 Se no futuro for necessário isolamento mais forte (cota separada, política diferente por ambiente), criar uma segunda subscription (`revold-nonprod` / `revold-prod`) no mesmo tenant — criar subscription é grátis, só os recursos usados são cobrados. Não é necessário decidir isso agora.
 
@@ -97,7 +97,7 @@ az ad sp create --id <appId-copiado-acima>
 {
   "name": "github-actions-dev",
   "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:SamuelSMatos/revold:environment:dev",
+  "subject": "repo:Revol-d/revold:environment:dev",
   "audiences": ["api://AzureADTokenExchange"]
 }
 '@ | Set-Content -Path federated-credential-dev.json -Encoding utf8
@@ -108,7 +108,7 @@ az ad app federated-credential create --id <appId> --parameters federated-creden
 - Configura a **federação OIDC**: diz ao Entra ID "confie em tokens assinados pelo GitHub Actions (`issuer`), desde que o token seja especificamente do repositório/ambiente certo (`subject`)". É isso que elimina a necessidade de um client secret — o GitHub Actions troca esse token por um token Azure válido na hora do deploy.
   - `name`: só um rótulo pra identificar essa credencial depois (pode repetir o padrão `github-actions-<ambiente>`, trocando o nome do arquivo também).
   - `issuer`: valor **fixo**, sempre `https://token.actions.githubusercontent.com`, **sem barra no final** — é exatamente a string que o GitHub grava no claim `iss` do token (conferido na documentação oficial do GitHub; alguns exemplos da própria Microsoft colocam a barra por engano, mas o valor que precisa bater com o token real é sem ela).
-  - `subject`: precisa bater **exatamente** com `repo:<org-ou-usuário>/<repositório>:environment:<nome-do-ambiente>` — troque `SamuelSMatos/revold` e `dev` pelos valores reais; é essa string que amarra a credencial a um GitHub Environment específico (criado logo abaixo, item 1).
+  - `subject`: precisa bater **exatamente** com `repo:<org-ou-usuário>/<repositório>:environment:<nome-do-ambiente>` — troque `Revol-d/revold` e `dev` pelos valores reais; é essa string que amarra a credencial a um GitHub Environment específico (criado logo abaixo, item 1).
   - `audiences`: valor **fixo**, sempre `api://AzureADTokenExchange` — é a audiência que o Azure espera ver no token.
   - Repita o bloco inteiro (arquivo + comando) pra `staging` e `prod`, trocando `dev` nos três lugares (nome do arquivo, `name` e `subject`).
 
@@ -126,7 +126,7 @@ Depois de repetir os 4 comandos acima pra `staging` e `prod` (trocando o nome do
 
 ## Passo 6 — Testar o Terraform na prática
 
-O backend remoto está comentado em `iac/terraform/providers.tf` — sem ele, duas pessoas aplicando Terraform correm o risco de sobrescrever o state uma da outra (cada `apply` local sobrescreve um arquivo `terraform.tfstate` só na sua própria máquina).
+O backend remoto está comentado em `deploy/terraform/providers.tf` — sem ele, duas pessoas aplicando Terraform correm o risco de sobrescrever o state uma da outra (cada `apply` local sobrescreve um arquivo `terraform.tfstate` só na sua própria máquina).
 
 ### 6.1 — Criar o storage account que vai guardar o state (bootstrap manual, única exceção)
 
@@ -141,7 +141,7 @@ az storage account check-name --name revoldtfstate
 az group create -n rg-revold-tfstate -l brazilsouth
 ```
 - `-n` (`--name`): nome do Resource Group — separado dos RGs de app (`rg-revold-dev` etc.) de propósito, porque o ciclo de vida é diferente: um `terraform destroy` do ambiente de dev nunca deve poder apagar o state.
-- `-l` (`--location`): região do Azure onde o recurso é criado — `brazilsouth` pra bater com `var.location` em `iac/terraform/variables.tf` (mesma região de tudo, evita latência cruzada e mantém dado no Brasil por padrão).
+- `-l` (`--location`): região do Azure onde o recurso é criado — `brazilsouth` pra bater com `var.location` em `deploy/terraform/variables.tf` (mesma região de tudo, evita latência cruzada e mantém dado no Brasil por padrão).
 
 ```powershell
 az storage account create -n revoldtfstate -g rg-revold-tfstate -l brazilsouth --sku Standard_LRS
@@ -159,7 +159,7 @@ az storage container create -n tfstate --account-name revoldtfstate
 
 ### 6.2 — Apontar o Terraform pro backend remoto
 
-Em `iac/terraform/providers.tf`, descomente o bloco já preparado (hoje linhas 13-18) e confirme que os valores batem com o que você acabou de criar:
+Em `deploy/terraform/providers.tf`, descomente o bloco já preparado (hoje linhas 13-18) e confirme que os valores batem com o que você acabou de criar:
 
 ```hcl
 backend "azurerm" {
@@ -172,23 +172,23 @@ backend "azurerm" {
 - `key` é só o nome do arquivo de state *dentro* do container — pode ter mais de um `key` diferente no mesmo container se um dia quiser mais de um state (ex.: um por ambiente), mas começar com um único arquivo é suficiente agora.
 
 ```powershell
-terraform -chdir=iac/terraform init -migrate-state
+terraform -chdir=deploy/terraform init -migrate-state
 ```
-- `-chdir=iac/terraform`: roda o comando como se você tivesse entrado nessa pasta, sem precisar sair de onde está.
+- `-chdir=deploy/terraform`: roda o comando como se você tivesse entrado nessa pasta, sem precisar sair de onde está.
 - `init`: baixa o provider `azurerm` e conecta ao backend configurado.
 - `-migrate-state`: como já existia um state local (de qualquer teste anterior) e agora tem um backend novo, essa flag pergunta (responda `yes`) se quer copiar o conteúdo do state local pro blob que acabou de ser criado, em vez de começar do zero.
 
 ### 6.3 — Criar os três ambientes (dev/staging/production)
 
-**Esse é o ponto que ficava faltando:** `var.environment` (`iac/terraform/variables.tf`) default é `"dev"`, mas só trocar esse valor e rodar `apply` de novo **não cria um segundo ambiente** — o `backend` do Passo 6.2 aponta pra um `key` fixo (`revold.tfstate`), então um state só ficaria responsável pelos três. Trocar `environment` de `dev` pra `staging` nesse cenário faria o Terraform entender "o Resource Group mudou de nome" e **destruir o de dev pra criar o de staging** no lugar, em vez de criar os dois lado a lado.
+**Esse é o ponto que ficava faltando:** `var.environment` (`deploy/terraform/variables.tf`) default é `"dev"`, mas só trocar esse valor e rodar `apply` de novo **não cria um segundo ambiente** — o `backend` do Passo 6.2 aponta pra um `key` fixo (`revold.tfstate`), então um state só ficaria responsável pelos três. Trocar `environment` de `dev` pra `staging` nesse cenário faria o Terraform entender "o Resource Group mudou de nome" e **destruir o de dev pra criar o de staging** no lugar, em vez de criar os dois lado a lado.
 
 A solução é usar **Terraform Workspaces** — cada workspace tem seu próprio arquivo de state dentro do mesmo container (o backend `azurerm` guarda cada um em `terraform.tfstateenv/<workspace>/revold.tfstate`), então dev/staging/production nunca se misturam:
 
 ```powershell
-terraform -chdir=iac/terraform workspace new dev
-terraform -chdir=iac/terraform workspace new staging
-terraform -chdir=iac/terraform workspace new production
-terraform -chdir=iac/terraform workspace list
+terraform -chdir=deploy/terraform workspace new dev
+terraform -chdir=deploy/terraform workspace new staging
+terraform -chdir=deploy/terraform workspace new production
+terraform -chdir=deploy/terraform workspace list
 ```
 - `workspace new <nome>` cria o workspace **e já troca a sessão ativa pra ele** — rode os três antes de qualquer `apply`, pra nada acabar criado sem querer no workspace `default`.
 - `workspace list` mostra os três (e o `default`, criado automaticamente), com um `*` indicando qual está ativo no momento.
@@ -197,10 +197,10 @@ terraform -chdir=iac/terraform workspace list
 Daqui pra frente, **sempre selecione o workspace certo antes de rodar `plan`/`apply`**, e passe o mesmo valor em `-var="environment=..."` (o workspace não troca essa variável sozinho, são dois mecanismos independentes que precisam concordar):
 
 ```powershell
-terraform -chdir=iac/terraform workspace select dev
+terraform -chdir=deploy/terraform workspace select dev
 $env:TF_VAR_postgres_admin_password = "escolha-uma-senha-forte-aqui"
-terraform -chdir=iac/terraform plan  -var="environment=dev"
-terraform -chdir=iac/terraform apply -var="environment=dev"
+terraform -chdir=deploy/terraform plan  -var="environment=dev"
+terraform -chdir=deploy/terraform apply -var="environment=dev"
 ```
 - `workspace select dev`: troca a sessão ativa pro workspace `dev` — qualquer `plan`/`apply` depois disso lê/escreve só o state desse workspace.
 - `-var="environment=dev"`: sobrescreve o default de `variables.tf` só nessa chamada, sem precisar editar o arquivo. Repita o bloco inteiro trocando `dev` por `staging` e depois `production` (nos três lugares: `workspace select`, `plan -var` e `apply -var`) pra criar os outros dois.
@@ -209,21 +209,21 @@ terraform -chdir=iac/terraform apply -var="environment=dev"
 ### 6.4 — Loop de teste seguro, sempre lendo antes de aplicar
 
 ```powershell
-terraform -chdir=iac/terraform fmt -check
+terraform -chdir=deploy/terraform fmt -check
 ```
 - Verifica se os arquivos `.tf` seguem a formatação padrão do Terraform (indentação, alinhamento). `-check` só **reporta** o que está fora do padrão (lista os arquivos, sai com código de erro) sem alterar nada — tirar o `-check` faz ele corrigir os arquivos direto.
 
 ```powershell
-terraform -chdir=iac/terraform validate
+terraform -chdir=deploy/terraform validate
 ```
 - Confere se o código é sintaticamente válido e internamente consistente (tipo de variável certo, argumento obrigatório presente) — **não** fala com o Azure, não precisa nem de `az login` pra esse passo específico. Pega erro de digitação antes de gastar tempo com um `plan`.
 
 ```powershell
-terraform -chdir=iac/terraform plan -var="environment=dev"
+terraform -chdir=deploy/terraform plan -var="environment=dev"
 ```
 - Com o workspace `dev` já selecionado (Passo 6.3) e a senha já exportada na sessão, `plan` faz um **dry-run** de verdade: conecta no Azure (usa a sessão do `az login`), compara o que o código pede com o que já existe (via o state remoto desse workspace) e imprime um resumo tipo `Plan: 8 to add, 0 to change, 0 to destroy` — com `+` (cria), `~` (atualiza sem recriar), `-` (destrói) e `-/+` (destrói e recria) na frente de cada recurso. **Leia essa lista inteira antes de aplicar** — é o jeito de pegar "isso vai apagar o banco de produção" antes de acontecer, não depois.
 
-Teste sempre no workspace `dev` primeiro. Só depois de ver um `plan` limpo rode `terraform -chdir=iac/terraform apply -var="environment=dev"` (ele repete o mesmo plano e pede confirmação digitando `yes`) — e nunca `apply` direto no workspace `production` fora do pipeline do Passo 5.
+Teste sempre no workspace `dev` primeiro. Só depois de ver um `plan` limpo rode `terraform -chdir=deploy/terraform apply -var="environment=dev"` (ele repete o mesmo plano e pede confirmação digitando `yes`) — e nunca `apply` direto no workspace `production` fora do pipeline do Passo 5.
 
 ### 6.5 — Automatizar a verificação
 
@@ -233,8 +233,8 @@ Teste sempre no workspace `dev` primeiro. Só depois de ver um `plan` limpo rode
 ## Passo 7 — Segurança e rede
 
 1. **Microsoft Defender for Cloud** → Environment settings → subscription → ativar o plano **Foundational CSPM** (gratuito). Avaliar os planos pagos de Key Vault e Databases, dado que ambos guardam dado de cliente (LGPD, ver `docs/security/README.md`).
-2. **Gap atual do Key Vault**: `iac/terraform/modules/key-vault/main.tf` não define `network_acls` — hoje está publicamente acessível, protegido só por RBAC. Adicionar `network_acls { default_action = "Deny", virtual_network_subnet_ids = [...] }` ou um Private Endpoint.
-3. **NSGs**: nenhuma subnet em `iac/terraform/modules/network/main.tf` tem Network Security Group hoje. Adicionar um `azurerm_network_security_group` associado à subnet de Container Apps, liberando só o necessário.
+2. **Gap atual do Key Vault**: `deploy/terraform/modules/key-vault/main.tf` não define `network_acls` — hoje está publicamente acessível, protegido só por RBAC. Adicionar `network_acls { default_action = "Deny", virtual_network_subnet_ids = [...] }` ou um Private Endpoint.
+3. **NSGs**: nenhuma subnet em `deploy/terraform/modules/network/main.tf` tem Network Security Group hoje. Adicionar um `azurerm_network_security_group` associado à subnet de Container Apps, liberando só o necessário.
 4. **Azure Policy** (opcional, alto valor com mais de um dev): atribuir iniciativas built-in tipo "Deny public network access" nos Resource Groups de produção.
 
 ## Passo 8 — Notificações
@@ -249,8 +249,8 @@ Duas coisas distintas:
 - **Conta de emergência ("break-glass")**: uma terceira conta Global Admin, excluída de MFA condicional, credencial guardada offline — sem isso, perder 2FA da conta do dia a dia trava o acesso ao próprio tenant.
 - **Resource Lock** (`CanNotDelete`) em `rg-revold-production` — evita `terraform destroy` ou clique errado apagando produção.
 - **Tags obrigatórias** (`environment`, `owner`, `cost-center`) via Azure Policy, pra cost allocation legível no Cost Management.
-- **Backup/DR do Postgres**: confirmar retenção e necessidade de geo-redundância — hoje não parametrizado em `iac/terraform/modules/postgres/main.tf`.
-- **Retenção de audit log do Entra ID**: no tier Free, sign-in/audit logs ficam ~7–30 dias. Exportar para o Log Analytics workspace que `iac/terraform/modules/container-apps/main.tf` já cria, se LGPD/ISO 27001 (`docs/security/README.md`) for meta real.
+- **Backup/DR do Postgres**: confirmar retenção e necessidade de geo-redundância — hoje não parametrizado em `deploy/terraform/modules/postgres/main.tf`.
+- **Retenção de audit log do Entra ID**: no tier Free, sign-in/audit logs ficam ~7–30 dias. Exportar para o Log Analytics workspace que `deploy/terraform/modules/container-apps/main.tf` já cria, se LGPD/ISO 27001 (`docs/security/README.md`) for meta real.
 - **Secret scanning / Dependabot** no GitHub (Settings → Code security).
 - **DPIA/LGPD formal**: já listado como pendente em `docs/security/README.md` — falta dono e data.
 - **CNPJ e domínio próprio**: billing em nome de pessoa jurídica (não cartão pessoal) e domínio verificado no Entra ID, para login `@suaempresa.com.br` em vez de `.onmicrosoft.com`.
