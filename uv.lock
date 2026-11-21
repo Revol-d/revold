@@ -2987,6 +2987,7 @@ version = "0.1.0"
 source = { editable = "libs/domains/orders" }
 dependencies = [
     { name = "pydantic" },
+    { name = "revold-azure-sql" },
     { name = "revold-postgres" },
     { name = "sqlalchemy" },
 ]
@@ -2994,6 +2995,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2.9,<3" },
+    { name = "revold-azure-sql", editable = "libs/integrations/azure-sql" },
     { name = "revold-postgres", editable = "libs/integrations/postgres" },
     { name = "sqlalchemy", specifier = ">=2.0.35,<3" },
 ]
