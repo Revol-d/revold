@@ -15,12 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api_gateway import settings
 from revold_ai_assistant.adapters.llm.factory import build_llm_provider
-from revold_ai_assistant.adapters.postgres.repository import PostgresProductIndexRepository
+from revold_ai_assistant.adapters.factory import build_product_index
 from revold_ai_assistant.ports import LLMProvider, ProductIndex
 from revold_cart.adapters.redis.repository import RedisCartRepository
 from revold_cart.ports import CartRepository
 from revold_catalog.adapters.media.factory import build_media_storage
-from revold_catalog.adapters.postgres.repository import PostgresProductRepository
+from revold_catalog.adapters.factory import build_product_repository
 from revold_catalog.ports import MediaStorage, ProductRepository
 from revold_communication.adapters.whatsapp_clicktochat import WhatsAppClickToChatCheckout
 from revold_communication.ports import CheckoutHandoff
@@ -79,7 +79,10 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
 async def get_product_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> ProductRepository:
-    return PostgresProductRepository(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_catalog.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    return build_product_repository(session, settings.persistence_provider())
 
 
 def get_redis_client() -> Redis:
@@ -198,7 +201,10 @@ def get_llm_provider() -> LLMProvider:
 async def get_product_index(
     session: AsyncSession = Depends(get_db_session),
 ) -> ProductIndex:
-    return PostgresProductIndexRepository(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_ai_assistant.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    return build_product_index(session, settings.persistence_provider())
 
 
 def get_media_storage() -> MediaStorage:

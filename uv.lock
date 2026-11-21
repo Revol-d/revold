@@ -397,6 +397,7 @@ source = { editable = "apps/ecommerce/catalog-indexer" }
 dependencies = [
     { name = "celery" },
     { name = "revold-ai-assistant" },
+    { name = "revold-azure-sql" },
     { name = "revold-catalog" },
     { name = "revold-ecommerce" },
     { name = "revold-platform" },
@@ -407,6 +408,7 @@ dependencies = [
 requires-dist = [
     { name = "celery", specifier = ">=5.4,<6" },
     { name = "revold-ai-assistant", editable = "libs/domains/ai-assistant" },
+    { name = "revold-azure-sql", editable = "libs/integrations/azure-sql" },
     { name = "revold-catalog", editable = "libs/domains/catalog" },
     { name = "revold-ecommerce", editable = "products/ecommerce" },
     { name = "revold-platform", editable = "libs/platform" },
@@ -878,6 +880,7 @@ source = { editable = "apps/ecommerce/event-worker" }
 dependencies = [
     { name = "celery" },
     { name = "revold-ai-assistant" },
+    { name = "revold-azure-sql" },
     { name = "revold-catalog" },
     { name = "revold-ecommerce" },
     { name = "revold-messaging" },
@@ -890,6 +893,7 @@ dependencies = [
 requires-dist = [
     { name = "celery", specifier = ">=5.4,<6" },
     { name = "revold-ai-assistant", editable = "libs/domains/ai-assistant" },
+    { name = "revold-azure-sql", editable = "libs/integrations/azure-sql" },
     { name = "revold-catalog", editable = "libs/domains/catalog" },
     { name = "revold-ecommerce", editable = "products/ecommerce" },
     { name = "revold-messaging", editable = "libs/integrations/messaging" },
@@ -2760,6 +2764,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "pgvector" },
     { name = "pydantic" },
+    { name = "revold-azure-sql" },
     { name = "revold-openai" },
     { name = "revold-postgres" },
     { name = "sqlalchemy" },
@@ -2770,6 +2775,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=0.2,<0.3" },
     { name = "pgvector", specifier = ">=0.3.5,<0.4" },
     { name = "pydantic", specifier = ">=2.9,<3" },
+    { name = "revold-azure-sql", editable = "libs/integrations/azure-sql" },
     { name = "revold-openai", editable = "libs/integrations/openai" },
     { name = "revold-postgres", editable = "libs/integrations/postgres" },
     { name = "sqlalchemy", specifier = ">=2.0.35,<3" },
@@ -2827,6 +2833,7 @@ source = { editable = "libs/domains/catalog" }
 dependencies = [
     { name = "pydantic" },
     { name = "revold-azure-blob" },
+    { name = "revold-azure-sql" },
     { name = "revold-postgres" },
     { name = "sqlalchemy" },
 ]
@@ -2835,6 +2842,7 @@ dependencies = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "revold-azure-blob", editable = "libs/integrations/azure-blob" },
+    { name = "revold-azure-sql", editable = "libs/integrations/azure-sql" },
     { name = "revold-postgres", editable = "libs/integrations/postgres" },
     { name = "sqlalchemy", specifier = ">=2.0.35,<3" },
 ]
