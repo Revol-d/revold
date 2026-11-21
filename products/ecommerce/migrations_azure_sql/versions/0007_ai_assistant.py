@@ -5,9 +5,11 @@ products/ecommerce/migrations/versions/0003_ai_assistant_product_index.py
 revold_ai_assistant.adapters.azure_sql.vector_type (SQLAlchemy ainda não tem
 suporte nativo ao VECTOR do Azure SQL).
 
-`CREATE VECTOR INDEX` (DiskANN) tem a MESMA restrição do `CREATE FULLTEXT
-CATALOG` da migração 0006 -- testado e confirmado: "cannot be used inside a
-user transaction" -- por isso também usa `autocommit_block()`.
+Sem `CREATE VECTOR INDEX` (DiskANN) de propósito -- ver a nota longa em
+adapters/azure_sql/models.py: a versão do índice com suporte a DML só está GA
+no Azure SQL Database real, e mesmo um SQL Server 2025 em caixa cria a versão
+antiga (tabela somente-leitura). `VECTOR_DISTANCE` funciona sem índice (scan
+completo); criar o índice fica para uma tarefa operacional futura.
 
 Revision ID: 0007
 Revises: 0006
@@ -37,12 +39,6 @@ def upgrade() -> None:
         sa.Column("embedding", Vector(1536), nullable=False),
         sa.PrimaryKeyConstraint("sku"),
     )
-    with op.get_context().autocommit_block():
-        op.execute(
-            "CREATE VECTOR INDEX ix_ai_assistant_product_index_embedding "
-            "ON ai_assistant_product_index(embedding) "
-            "WITH (metric = 'cosine', type = 'diskann')"
-        )
 
 
 def downgrade() -> None:
