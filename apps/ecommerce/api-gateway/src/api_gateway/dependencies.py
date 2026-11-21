@@ -29,7 +29,7 @@ from revold_identity.adapters.providers.factory import build_identity_provider
 from revold_identity.adapters.redis.rate_limiter import RedisRateLimiter
 from revold_identity.adapters.redis.session_repository import RedisSessionRepository
 from revold_identity.ports import ApiKeyAuth, IdentityProvider, RateLimiter, SessionRepository
-from revold_inventory.adapters.postgres.repository import PostgresInventoryRepository
+from revold_inventory.adapters.factory import build_inventory_repository
 from revold_inventory.ports import InventoryRepository
 from revold_notification.adapters.logging_channel import LoggingNotificationChannel
 from revold_notification.ports import NotificationChannel
@@ -95,7 +95,10 @@ async def get_cart_repository(
 async def get_inventory_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> InventoryRepository:
-    return PostgresInventoryRepository(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_inventory.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    return build_inventory_repository(session, settings.persistence_provider())
 
 
 async def get_session_repository(
