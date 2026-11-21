@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 # Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
 dependencies = [
     "revold-postgres",
+    "revold-azure-sql",
     "revold-mercado-pago",
     "pydantic>=2.9,<3",
     "sqlalchemy>=2.0.35,<3",
