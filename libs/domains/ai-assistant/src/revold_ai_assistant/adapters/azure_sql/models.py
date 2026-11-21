@@ -5,6 +5,18 @@ VECTOR, só a porta ProductIndex. Espelha adapters/postgres/models.py, trocando
 pgvector.sqlalchemy.Vector pelo tipo customizado em
 adapters/azure_sql/vector_type.py (SQLAlchemy ainda não tem suporte nativo ao
 VECTOR do Azure SQL).
+
+Sem índice `CREATE VECTOR INDEX` (DiskANN) de propósito -- testado e
+confirmado que a versão do índice com suporte a DML (INSERT/UPDATE/DELETE
+contínuos, o que o `upsert` desta porta precisa) só está GA no Azure SQL
+Database/Fabric real; mesmo um SQL Server 2025 RTM-CU11 em caixa cria a
+versão antiga, que torna a tabela somente-leitura assim que o índice existe
+(`ALLOW_STALE_VECTOR_INDEX`, a válvula de escape documentada, nem é
+reconhecida nessa build). `VECTOR_DISTANCE` funciona normalmente sem índice
+(scan completo) -- mais lento em escala, mas idêntico em qualquer ambiente, e
+sem essa trava de escrita. Criar o índice fica para quando a versão
+DML-friendly estiver disponível de forma confiável (tarefa operacional
+futura, fora desta migração).
 """
 from __future__ import annotations
 
