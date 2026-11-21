@@ -12,6 +12,7 @@ dependencies = [
     "revold-notification",
     "revold-platform",
     "revold-postgres",
+    "revold-azure-sql",
     "celery>=5.4,<6",
 ]
 
