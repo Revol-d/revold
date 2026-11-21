@@ -15,6 +15,10 @@ from decimal import Decimal
 from revold_inventory.ports import InventoryRepository
 from revold_orders.domain import Money, Order, OrderLine, PaymentStatus
 from revold_orders.ports import OrderRepository
+from revold_payments.domain import Charge
+from revold_payments.domain import Money as PaymentMoney
+from revold_payments.domain import PaymentMethod
+from revold_payments.ports import ChargeRepository
 from revold_store_settings.ports import StoreSettingsRepository
 from revold_testing.inventory_factories import StockLevelFactory
 from revold_testing.store_settings_factories import StoreSettingsFactory
@@ -113,3 +117,47 @@ async def assert_order_repository_conformance(repository: OrderRepository) -> No
     all_orders, total_all = await repository.list(payment_status=None, page=1, page_size=1)
     assert total_all == 2
     assert len(all_orders) == 1
+
+
+def _build_charge(charge_id: str, order_id: str, *, created_at: str) -> Charge:
+    return Charge(
+        charge_id=charge_id,
+        order_id=order_id,
+        provider="mercado_pago",
+        provider_charge_id=f"mp-{charge_id}",
+        method=PaymentMethod.PIX,
+        amount=PaymentMoney(Decimal("59.90")),
+        pix_qr_code="qr-fake",
+        pix_copy_paste="copia-e-cola-fake",
+        created_at=created_at,
+    )
+
+
+async def assert_charge_repository_conformance(repository: ChargeRepository) -> None:
+    """Qualquer ChargeRepository (Postgres, Azure SQL, fake em memória) precisa
+    passar por isto. Assume o repositório vazio ao receber."""
+    assert await repository.get("nao-existe") is None
+
+    first = _build_charge("ch1", "o1", created_at="2026-09-12T10:00:00+00:00")
+    await repository.save(first)
+    reloaded = await repository.get(first.charge_id)
+    assert reloaded is not None
+    assert reloaded.order_id == "o1"
+    assert reloaded.amount == PaymentMoney(Decimal("59.90"))
+    assert reloaded.pix_qr_code == "qr-fake"
+
+    second = _build_charge("ch2", "o1", created_at="2026-09-12T11:00:00+00:00")
+    await repository.save(second)
+    most_recent = await repository.get_by_order("o1")
+    assert most_recent is not None
+    assert most_recent.charge_id == "ch2"
+
+    found = await repository.get_by_provider_charge_id("mp-ch1")
+    assert found is not None
+    assert found.charge_id == "ch1"
+
+    reloaded.mark_paid()
+    await repository.save(reloaded)
+    reloaded_again = await repository.get(first.charge_id)
+    assert reloaded_again is not None
+    assert reloaded_again.status.value == "paid"

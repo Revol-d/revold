@@ -49,6 +49,7 @@ def _azure_sql_metadata() -> MetaData:
     from revold_azure_sql.db import Base
     from revold_inventory.adapters.azure_sql import models as _inventory  # noqa: F401
     from revold_orders.adapters.azure_sql import models as _orders  # noqa: F401
+    from revold_payments.adapters.azure_sql import models as _payments  # noqa: F401
     from revold_store_settings.adapters.azure_sql import models as _store_settings  # noqa: F401
 
     return Base.metadata
