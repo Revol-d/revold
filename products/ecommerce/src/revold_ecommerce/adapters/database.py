@@ -46,7 +46,9 @@ def _postgres_metadata() -> MetaData:
 def _azure_sql_metadata() -> MetaData:
     # Importados só para registrar as tabelas no `Base.metadata` do Azure SQL. Só os domínios
     # já migrados entram aqui -- a lista cresce fase a fase (ver o plano de migração).
+    from revold_ai_assistant.adapters.azure_sql import models as _ai_assistant  # noqa: F401
     from revold_azure_sql.db import Base
+    from revold_catalog.adapters.azure_sql import models as _catalog  # noqa: F401
     from revold_identity.adapters.azure_sql import api_key_models as _identity  # noqa: F401
     from revold_inventory.adapters.azure_sql import models as _inventory  # noqa: F401
     from revold_orders.adapters.azure_sql import models as _orders  # noqa: F401

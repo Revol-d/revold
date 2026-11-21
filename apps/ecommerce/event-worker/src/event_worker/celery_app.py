@@ -22,18 +22,26 @@ from typing import Any
 from celery import Celery
 
 from event_worker import settings
+from revold_ai_assistant.adapters.factory import build_product_index
 from revold_ai_assistant.adapters.llm.factory import build_llm_provider
-from revold_ai_assistant.adapters.postgres.repository import PostgresProductIndexRepository
-from revold_catalog.adapters.postgres.repository import PostgresProductRepository
+from revold_catalog.adapters.factory import build_product_repository
 from revold_ecommerce.application import event_handlers
 from revold_messaging.webhook_factory import build_webhook_sender
 from revold_notification.adapters.factory import build_notification_channel
 from revold_platform.events.domain import DomainEvent
-from revold_postgres.db import make_engine, make_session_factory
 
 logger = logging.getLogger(__name__)
 
 celery_app = Celery("event_worker", broker=settings.redis_url())
+
+_persistence_provider = settings.persistence_provider()
+if _persistence_provider == "azure-sql":
+    # Seleciona o engine/sessão do dialeto certo via PERSISTENCE_PROVIDER (ver
+    # revold_ecommerce.adapters.database e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    from revold_azure_sql.db import make_engine, make_session_factory
+else:
+    from revold_postgres.db import make_engine, make_session_factory
 
 _engine = make_engine(settings.database_url())
 _session_factory = make_session_factory(_engine)
@@ -50,9 +58,9 @@ async def _dispatch(event_name: str, payload: dict[str, Any]) -> None:
         async with _session_factory() as session:
             ok = await event_handlers.handle_product_updated(
                 payload,
-                product_repository=PostgresProductRepository(session),
+                product_repository=build_product_repository(session, _persistence_provider),
                 llm=llm,
-                index=PostgresProductIndexRepository(session),
+                index=build_product_index(session, _persistence_provider),
             )
         if not ok:
             logger.info(
