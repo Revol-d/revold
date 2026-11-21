@@ -14,6 +14,11 @@ from decimal import Decimal
 
 import pytest
 
+from revold_ai_assistant.ports import ProductIndex
+from revold_catalog.domain import Category, Product, ProductVariant
+from revold_catalog.domain import Money as CatalogMoney
+from revold_catalog.ports import ProductRepository
+from revold_testing.catalog_factories import ProductFactory
 from revold_identity.domain import ApiKeyNotFound
 from revold_identity.ports import ApiKeyAuth
 from revold_inventory.ports import InventoryRepository
@@ -188,3 +193,183 @@ async def assert_api_key_auth_conformance(auth: ApiKeyAuth) -> None:
     _, raw_key_a = await auth.issue(name="Parceiro A")
     _, raw_key_b = await auth.issue(name="Parceiro B")
     assert raw_key_a != raw_key_b
+
+
+async def assert_product_repository_conformance(repository: ProductRepository) -> None:
+    """Qualquer ProductRepository (Postgres, Azure SQL, fake em memória) precisa
+    passar por isto. **Não cobre busca full-text** -- o ranking de relevância é
+    definido por adapter (ver docstring da porta e ADR da migração), então os
+    testes de busca ficam no arquivo de integração de cada adapter, não aqui.
+    Assume o repositório vazio ao receber."""
+    assert await repository.get_category("nao-existe") is None
+    assert await repository.list_categories() == []
+
+    category = Category(slug="camisetas", name="Camisetas")
+    await repository.save_category(category)
+    assert await repository.get_category("camisetas") == category
+    assert await repository.list_categories() == [category]
+
+    product = Product(
+        sku="CAM-001",
+        name="Camiseta Básica",
+        category=category,
+        price=CatalogMoney(Decimal("79.90")),
+        variants=[ProductVariant(sku="CAM-001-P", size="P", color="Branco", in_stock=True)],
+        images=["https://example.com/a.jpg"],
+    )
+    await repository.save_product(product)
+    reloaded = await repository.get_product("CAM-001")
+    assert reloaded is not None
+    assert reloaded.price.amount == Decimal("79.90")
+    assert len(reloaded.variants) == 1
+    assert reloaded.variants[0].sku == "CAM-001-P"
+
+    # Reconciliação de variantes por SKU (não recria do zero) -- o bug real que só
+    # aparece contra SQL de verdade (conflito de PK), nunca contra um fake.
+    updated = Product(
+        sku="CAM-001",
+        name="Camiseta Básica",
+        category=category,
+        price=CatalogMoney(Decimal("89.90")),
+        variants=[
+            ProductVariant(sku="CAM-001-P", size="P", color="Branco", in_stock=False),
+            ProductVariant(sku="CAM-001-M", size="M", color="Branco", in_stock=True),
+        ],
+    )
+    await repository.save_product(updated)  # não deve levantar IntegrityError
+    reloaded = await repository.get_product("CAM-001")
+    assert reloaded is not None
+    variants_by_sku = {v.sku: v for v in reloaded.variants}
+    assert variants_by_sku["CAM-001-P"].in_stock is False
+    assert variants_by_sku["CAM-001-M"].in_stock is True
+
+    # Remover variante via save_product apaga a linha de verdade.
+    without_m = Product(
+        sku="CAM-001",
+        name="Camiseta Básica",
+        category=category,
+        price=CatalogMoney(Decimal("89.90")),
+        variants=[ProductVariant(sku="CAM-001-P", size="P", color="Branco", in_stock=False)],
+    )
+    await repository.save_product(without_m)
+    reloaded = await repository.get_product("CAM-001")
+    assert reloaded is not None
+    assert [v.sku for v in reloaded.variants] == ["CAM-001-P"]
+    assert await repository.find_variant_owner("CAM-001-M") is None
+
+    # Preço: ordenação via ORDER BY de verdade.
+    barato = Product(
+        sku="CAM-BARATO", name="Barata", category=category, price=CatalogMoney(Decimal("29.90")), variants=[]
+    )
+    caro = Product(
+        sku="CAM-CARO", name="Cara", category=category, price=CatalogMoney(Decimal("199.90")), variants=[]
+    )
+    await repository.save_product(caro)
+    await repository.save_product(barato)
+    items, total = await repository.list_products(
+        category_slug=None, page=1, page_size=20, sort="price_asc"
+    )
+    assert total == 3  # CAM-001 + CAM-BARATO + CAM-CARO
+    baratos_primeiro = [p.sku for p in items if p.sku in ("CAM-BARATO", "CAM-CARO")]
+    assert baratos_primeiro == ["CAM-BARATO", "CAM-CARO"]
+
+    # Filtro por tamanho/cor via EXISTS -- tamanho+cor juntos exigem a MESMA variante.
+    await repository.save_product(
+        Product(
+            sku="CAL-001",
+            name="Calça Jeans",
+            category=category,
+            price=CatalogMoney(Decimal("120")),
+            variants=[ProductVariant(sku="CAL-001-38", size="38", color="Azul", in_stock=True)],
+        )
+    )
+    items, total = await repository.list_products(
+        category_slug=None, page=1, page_size=20, sizes=["38"], colors=["Azul"]
+    )
+    assert total == 1
+    assert items[0].sku == "CAL-001"
+    items, total = await repository.list_products(
+        category_slug=None, page=1, page_size=20, sizes=["38"], colors=["Branco"]
+    )
+    assert total == 0  # "38" existe (CAL-001) mas não na cor Branco -- não deve casar
+
+    # Delete: produto some com as variantes (cascade); categoria some; idempotente.
+    await repository.delete_product("CAM-001")
+    assert await repository.get_product("CAM-001") is None
+    assert await repository.find_variant_owner("CAM-001-P") is None
+    await repository.delete_product("NAO-EXISTE")  # idempotente, sem erro
+
+    await repository.save_category(Category(slug="acessorios", name="Acessórios"))
+    await repository.delete_category("acessorios")
+    assert await repository.get_category("acessorios") is None
+
+
+async def assert_product_repository_bulk_roundtrip(repository: ProductRepository) -> None:
+    """Lote de produtos gerados por fábrica (Faker), não fixture limpa escrita à
+    mão -- pega problema de precisão/encoding que nem o fake em memória nem uma
+    fixture "CAM-001" testariam. Precisa de uma categoria já salva (`category`)."""
+    category = Category(slug="camisetas-bulk", name="Camisetas")
+    await repository.save_category(category)
+
+    produtos = [ProductFactory(category=category) for _ in range(15)]
+    for produto in produtos:
+        await repository.save_product(produto)
+
+    for produto in produtos:
+        reloaded = await repository.get_product(produto.sku)
+        assert reloaded is not None
+        assert reloaded.price.amount == produto.price.amount
+        assert reloaded.name == produto.name
+        assert {v.sku for v in reloaded.variants} == {v.sku for v in produto.variants}
+
+    unicode_produto = ProductFactory(
+        category=category, name="Vestido Midi Ção 🎉", description=""
+    )
+    await repository.save_product(unicode_produto)
+    reloaded = await repository.get_product(unicode_produto.sku)
+    assert reloaded is not None
+    assert reloaded.name == "Vestido Midi Ção 🎉"
+    assert reloaded.description == ""
+
+
+# Mesma dimensão do text-embedding-3-small (Azure OpenAI) que os dois adapters usam --
+# ver revold_ai_assistant.adapters.*.models.EMBEDDING_DIMENSIONS e ADR-0011. Repetida
+# aqui (não importada de um adapter específico) para não criar uma dependência
+# assimétrica entre os dois adapters dentro do harness compartilhado.
+_EMBEDDING_DIMENSIONS = 1536
+
+
+def _basis_vector(dimension_with_one: int) -> list[float]:
+    """Vetor com 1.0 numa posição e 0.0 no resto -- dá pra prever a distância de
+    cosseno exata entre dois destes (0.0 se mesma posição, 1.0 se diferente), sem
+    depender de embedding real."""
+    vector = [0.0] * _EMBEDDING_DIMENSIONS
+    vector[dimension_with_one] = 1.0
+    return vector
+
+
+async def assert_product_index_conformance(index: ProductIndex) -> None:
+    """Qualquer ProductIndex (Postgres+pgvector, Azure SQL+VECTOR/DiskANN, fake em
+    memória) precisa passar por isto. Assume o índice vazio ao receber."""
+    assert await index.search(embedding=_basis_vector(0), limit=5) == []
+
+    await index.upsert(
+        sku="CAM-001", name="Camiseta v1", description="descrição antiga", embedding=_basis_vector(0)
+    )
+    await index.upsert(
+        sku="CAM-001", name="Camiseta v2", description="descrição nova", embedding=_basis_vector(1)
+    )
+    resultados = await index.search(embedding=_basis_vector(1), limit=10)
+    assert len(resultados) == 1  # upsert atualiza, não duplica
+    assert resultados[0].name == "Camiseta v2"
+
+    await index.upsert(sku="A", name="Produto A", description="", embedding=_basis_vector(0))
+    await index.upsert(sku="B", name="Produto B", description="", embedding=_basis_vector(1))
+    await index.upsert(sku="C", name="Produto C", description="", embedding=_basis_vector(2))
+    # CAM-001 também está no índice com o vetor de dimensão 1 -- junto de B.
+    resultados = await index.search(embedding=_basis_vector(1), limit=10)
+    assert resultados[0].distance == pytest.approx(0.0, abs=1e-6)
+    assert resultados[0].sku in ("B", "CAM-001")
+
+    resultados = await index.search(embedding=_basis_vector(0), limit=2)
+    assert len(resultados) == 2  # limit restringe quantidade

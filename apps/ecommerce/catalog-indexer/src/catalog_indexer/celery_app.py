@@ -21,23 +21,31 @@ import asyncio
 from celery import Celery
 
 from catalog_indexer import settings
+from revold_ai_assistant.adapters.factory import build_product_index
 from revold_ai_assistant.adapters.llm.factory import build_llm_provider
-from revold_ai_assistant.adapters.postgres.repository import PostgresProductIndexRepository
 from revold_ai_assistant.application.use_cases import IndexProduct
-from revold_catalog.adapters.postgres.repository import PostgresProductRepository
+from revold_catalog.adapters.factory import build_product_repository
 from revold_ecommerce.application.catalog_indexing import reindex_all_products
-from revold_postgres.db import make_engine, make_session_factory
 
 celery_app = Celery("catalog_indexer", broker=settings.redis_url())
 
 
 async def _reindex() -> int:
+    provider = settings.persistence_provider()
+    if provider == "azure-sql":
+        # Seleciona o engine/sessão do dialeto certo via PERSISTENCE_PROVIDER (ver
+        # revold_ecommerce.adapters.database e o plano de migração Postgres ->
+        # Azure SQL, docs internos).
+        from revold_azure_sql.db import make_engine, make_session_factory
+    else:
+        from revold_postgres.db import make_engine, make_session_factory
+
     engine = make_engine(settings.database_url())
     session_factory = make_session_factory(engine)
     llm = build_llm_provider(settings.llm_settings())
     async with session_factory() as session:
-        product_repository = PostgresProductRepository(session)
-        index_repository = PostgresProductIndexRepository(session)
+        product_repository = build_product_repository(session, provider)
+        index_repository = build_product_index(session, provider)
         index_product = IndexProduct(llm, index_repository)
         return await reindex_all_products(product_repository, index_product)
 
