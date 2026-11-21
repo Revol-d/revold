@@ -33,7 +33,7 @@ from revold_inventory.adapters.factory import build_inventory_repository
 from revold_inventory.ports import InventoryRepository
 from revold_notification.adapters.logging_channel import LoggingNotificationChannel
 from revold_notification.ports import NotificationChannel
-from revold_orders.adapters.postgres.repository import PostgresOrderRepository
+from revold_orders.adapters.factory import build_order_repository
 from revold_orders.ports import OrderRepository
 from revold_payments.adapters.gateways.factory import build_payment_gateway
 from revold_payments.adapters.postgres.repository import PostgresChargeRepository
@@ -131,10 +131,10 @@ def get_notification_channel() -> NotificationChannel:
 async def get_order_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> OrderRepository:
-    # Sempre Postgres (ADR-0023) — mesmo raciocínio de get_api_key_auth:
-    # não há "provedor de nuvem" a trocar por env var, pedido é sempre um
-    # dado nosso.
-    return PostgresOrderRepository(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_orders.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    return build_order_repository(session, settings.persistence_provider())
 
 
 async def get_charge_repository(
