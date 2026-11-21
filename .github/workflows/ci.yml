@@ -220,7 +220,17 @@ jobs:
           cat <<'DOCKERFILE' > Dockerfile.mssql-fts
           FROM mcr.microsoft.com/mssql/server:2022-latest
           USER root
+          # O repositorio "prod" ja configurado na imagem so tem as ferramentas
+          # cliente (mssql-tools18 etc) -- mssql-server-fts mora no repositorio
+          # especifico do produto (mssql-server-2022), que precisa ser adicionado a
+          # mao. Confirmado rodando isto de verdade num container local antes de por
+          # no CI: sem este repositorio, "apt-get install mssql-server-fts" da
+          # "Unable to locate package"; com ele, instala e
+          # FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') volta 1.
           RUN apt-get update \
+              && apt-get install -y curl \
+              && curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/mssql-server-2022.list -o /etc/apt/sources.list.d/mssql-server-2022.list \
+              && apt-get update \
               && ACCEPT_EULA=Y apt-get install -y mssql-server-fts \
               && apt-get clean \
               && rm -rf /var/lib/apt/lists/*
