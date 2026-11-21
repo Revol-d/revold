@@ -2890,6 +2890,7 @@ source = { editable = "libs/domains/identity" }
 dependencies = [
     { name = "pydantic" },
     { name = "redis" },
+    { name = "revold-azure-sql" },
     { name = "revold-postgres" },
     { name = "sqlalchemy" },
 ]
@@ -2898,6 +2899,7 @@ dependencies = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "redis", specifier = ">=5.0.8,<6" },
+    { name = "revold-azure-sql", editable = "libs/integrations/azure-sql" },
     { name = "revold-postgres", editable = "libs/integrations/postgres" },
     { name = "sqlalchemy", specifier = ">=2.0.35,<3" },
 ]
