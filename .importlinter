@@ -180,7 +180,6 @@ source_modules =
 forbidden_modules =
     revold_ai_assistant
     revold_azure_blob
-    revold_azure_sql
     revold_cart
     revold_catalog
     revold_communication

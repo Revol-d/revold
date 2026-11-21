@@ -47,6 +47,7 @@ def _azure_sql_metadata() -> MetaData:
     # Importados só para registrar as tabelas no `Base.metadata` do Azure SQL. Só os domínios
     # já migrados entram aqui -- a lista cresce fase a fase (ver o plano de migração).
     from revold_azure_sql.db import Base
+    from revold_inventory.adapters.azure_sql import models as _inventory  # noqa: F401
     from revold_store_settings.adapters.azure_sql import models as _store_settings  # noqa: F401
 
     return Base.metadata
