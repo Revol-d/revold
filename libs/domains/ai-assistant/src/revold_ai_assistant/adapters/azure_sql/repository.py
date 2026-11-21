@@ -52,7 +52,10 @@ class AzureSqlProductIndexRepository:
         if exists is None:
             await self._session.execute(
                 text(
-                    "INSERT INTO ai_assistant_product_index (sku, name, description, embedding) "
+                    # vector_literal vem de _vector_literal(), sempre uma lista de float
+                    # formatada por este codigo (ver docstring do modulo), nunca texto de
+                    # usuario; sku/name/description continuam bind parameter
+                    "INSERT INTO ai_assistant_product_index (sku, name, description, embedding) "  # nosec B608
                     f"VALUES (:sku, :name, :description, {vector_literal})"
                 ),
                 {"sku": sku, "name": name, "description": description},
@@ -60,7 +63,8 @@ class AzureSqlProductIndexRepository:
         else:
             await self._session.execute(
                 text(
-                    "UPDATE ai_assistant_product_index "
+                    # mesma justificativa do INSERT acima
+                    "UPDATE ai_assistant_product_index "  # nosec B608
                     f"SET name = :name, description = :description, embedding = {vector_literal} "
                     "WHERE sku = :sku"
                 ),
