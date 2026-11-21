@@ -206,30 +206,37 @@ jobs:
           echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
       - name: Instalar o workspace
         run: uv sync --frozen
-      - name: Montar a imagem do SQL Server com Full-Text Search
-        # A imagem oficial mcr.microsoft.com/mssql/server:2022-latest NAO vem com
-        # Full-Text Search instalado -- confirmado rodando este job de verdade: a
-        # migracao do catalog (CREATE FULLTEXT CATALOG) falhava com "Full-Text Search
-        # is not installed" (erro 7609). Nao da pra instalar via `docker exec` num
-        # container ja rodando (nao pega -- so funciona se instalado ANTES do primeiro
-        # start do sqlservr, confirmado contra relatos reais de quem tentou as duas
-        # formas). Por isso este job nao usa mais `services:` (que so aceita puxar uma
-        # imagem pronta): builda a imagem com o pacote aqui, antes de subir o
-        # container.
+      - name: Montar a imagem do SQL Server (2025, com Full-Text Search)
+        # Por que 2025 e nao 2022: o tipo nativo VECTOR so existe no motor do SQL
+        # Server a partir da versao 2025 (17.x) -- confirmado rodando a migracao de
+        # verdade contra o 2022-latest (motor 16.x): "Cannot find data type VECTOR"
+        # (erro 2715). A Fase 0 deste plano validou VECTOR contra um Azure SQL
+        # Database real (PaaS, sempre na versao mais nova), que nao e a mesma coisa
+        # que o produto "em caixa" rodado aqui -- por isso o gap so apareceu agora,
+        # rodando o job de verdade pela primeira vez.
+        #
+        # A imagem oficial tambem NAO vem com Full-Text Search instalado -- confirmado
+        # da mesma forma: a migracao do catalog (CREATE FULLTEXT CATALOG) falhava com
+        # "Full-Text Search is not installed" (erro 7609). Nao da pra instalar via
+        # `docker exec` num container ja rodando (nao pega -- so funciona se instalado
+        # ANTES do primeiro start do sqlservr). Por isso este job nao usa mais
+        # `services:` (que so aceita puxar uma imagem pronta): builda a imagem com o
+        # pacote aqui, antes de subir o container.
         run: |
           cat <<'DOCKERFILE' > Dockerfile.mssql-fts
-          FROM mcr.microsoft.com/mssql/server:2022-latest
+          FROM mcr.microsoft.com/mssql/server:2025-latest
           USER root
           # O repositorio "prod" ja configurado na imagem so tem as ferramentas
           # cliente (mssql-tools18 etc) -- mssql-server-fts mora no repositorio
-          # especifico do produto (mssql-server-2022), que precisa ser adicionado a
+          # especifico do produto (mssql-server-2025, Ubuntu 24.04/noble -- confirmado
+          # rodando @@VERSION dentro da propria imagem), que precisa ser adicionado a
           # mao. Confirmado rodando isto de verdade num container local antes de por
           # no CI: sem este repositorio, "apt-get install mssql-server-fts" da
           # "Unable to locate package"; com ele, instala e
           # FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') volta 1.
           RUN apt-get update \
               && apt-get install -y curl \
-              && curl -fsSL https://packages.microsoft.com/config/ubuntu/22.04/mssql-server-2022.list -o /etc/apt/sources.list.d/mssql-server-2022.list \
+              && curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/mssql-server-2025.list -o /etc/apt/sources.list.d/mssql-server-2025.list \
               && apt-get update \
               && ACCEPT_EULA=Y apt-get install -y mssql-server-fts \
               && apt-get clean \
