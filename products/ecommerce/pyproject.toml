@@ -15,6 +15,7 @@ dependencies = [
     "revold-store-settings",
     "revold-platform",
     "revold-postgres",
+    "revold-azure-sql",
 ]
 
 [build-system]

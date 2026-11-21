@@ -24,6 +24,7 @@
 /libs/domains/payments/                    @SamuelSMatos @dmourans
 /libs/domains/store-settings/              @SamuelSMatos @dmourans
 /libs/integrations/azure-blob/             @SamuelSMatos @dmourans
+/libs/integrations/azure-sql/              @SamuelSMatos @dmourans
 /libs/integrations/mercado-pago/           @SamuelSMatos @dmourans
 /libs/integrations/messaging/              @SamuelSMatos @dmourans
 /libs/integrations/openai/                 @SamuelSMatos @dmourans
@@ -67,6 +68,7 @@
 /libs/domains/payments/unit.yaml           @SamuelSMatos @dmourans
 /libs/domains/store-settings/unit.yaml     @SamuelSMatos @dmourans
 /libs/integrations/azure-blob/unit.yaml    @SamuelSMatos @dmourans
+/libs/integrations/azure-sql/unit.yaml     @SamuelSMatos @dmourans
 /libs/integrations/mercado-pago/unit.yaml  @SamuelSMatos @dmourans
 /libs/integrations/messaging/unit.yaml     @SamuelSMatos @dmourans
 /libs/integrations/openai/unit.yaml        @SamuelSMatos @dmourans

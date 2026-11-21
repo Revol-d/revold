@@ -41,11 +41,19 @@ from revold_payments.ports import ChargeRepository, PaymentGateway
 from revold_platform.events.in_memory_publisher import InMemoryEventPublisher
 from revold_platform.events.ports import EventPublisher
 from revold_platform.observability.ports import MetricsPublisher
-from revold_postgres.db import make_engine, make_session_factory
 from revold_prometheus.metrics_publisher import PrometheusMetricsPublisher
 from revold_redis.client import make_redis_client
-from revold_store_settings.adapters.postgres.repository import PostgresStoreSettingsRepository
+from revold_store_settings.adapters.factory import build_store_settings_repository
 from revold_store_settings.ports import StoreSettingsRepository
+
+if settings.persistence_provider() == "azure-sql":
+    # Seleciona o engine/sessão do dialeto certo via PERSISTENCE_PROVIDER (ver o plano de
+    # migração Postgres -> Azure SQL, docs internos). Só a construção do engine mora aqui;
+    # qual classe de repositório embrulha a sessão é decidido em cada
+    # `adapters/factory.py` de domínio (ver get_store_settings_repository abaixo).
+    from revold_azure_sql.db import make_engine, make_session_factory
+else:
+    from revold_postgres.db import make_engine, make_session_factory
 
 _engine = make_engine(settings.database_url())
 _session_factory = make_session_factory(_engine)
@@ -142,9 +150,11 @@ def get_payment_gateway() -> PaymentGateway:
 async def get_store_settings_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> StoreSettingsRepository:
-    # Sempre Postgres (ADR-0019) — mesmo raciocínio de get_api_key_auth:
-    # não há "provedor de nuvem" a trocar por env var, é sempre dado nosso.
-    return PostgresStoreSettingsRepository(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_store_settings.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos). O raciocínio "sempre Postgres" das ADR-0016/0019/0023/0024 vale até
+    # essa migração terminar e uma ADR nova substituir essas quatro.
+    return build_store_settings_repository(session, settings.persistence_provider())
 
 
 def get_low_stock_threshold_env_default() -> int:
