@@ -24,7 +24,7 @@ from revold_catalog.adapters.postgres.repository import PostgresProductRepositor
 from revold_catalog.ports import MediaStorage, ProductRepository
 from revold_communication.adapters.whatsapp_clicktochat import WhatsAppClickToChatCheckout
 from revold_communication.ports import CheckoutHandoff
-from revold_identity.adapters.postgres.api_key_auth import PostgresApiKeyAuth
+from revold_identity.adapters.factory import build_api_key_auth
 from revold_identity.adapters.providers.factory import build_identity_provider
 from revold_identity.adapters.redis.rate_limiter import RedisRateLimiter
 from revold_identity.adapters.redis.session_repository import RedisSessionRepository
@@ -218,10 +218,10 @@ def get_event_publisher() -> EventPublisher:
 async def get_api_key_auth(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiKeyAuth:
-    # Sempre Postgres (ADR-0016) — diferente de LLM_PROVIDER/AUTH_PROVIDER,
-    # não há aqui um "provedor de nuvem" para trocar por env var: API key é
-    # sempre um dado nosso, guardado no nosso banco.
-    return PostgresApiKeyAuth(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_identity.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    return build_api_key_auth(session, settings.persistence_provider())
 
 
 def get_rate_limiter(redis: Redis = Depends(get_redis_client)) -> RateLimiter:
