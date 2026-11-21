@@ -184,6 +184,15 @@ jobs:
       DATABASE_URL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       DATABASE_URL_SYNC_AZURE_SQL: mssql+pyodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       TEST_DATABASE_URL_AZURE_SQL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      # Os testes de integracao do Postgres (um por dominio) caem em
+      # TEST_DATABASE_URL -> DATABASE_URL quando TEST_DATABASE_URL nao esta
+      # definido -- testado e confirmado que, sem isto, eles "vazam" pra
+      # conexao mssql do DATABASE_URL acima (a URL dita o dialeto, nao o
+      # nome da variavel) em vez de pular, e falham com erro de sintaxe SQL
+      # Server ao rodar consultas especificas do Postgres. Porta 1 fecha
+      # rapido (connection refused), entao o proprio skip-on-connection-
+      # failure de cada teste funciona como esperado.
+      TEST_DATABASE_URL: postgresql+asyncpg://unreachable:unreachable@localhost:1/revold
     steps:
       - uses: actions/checkout@v4
         with:
