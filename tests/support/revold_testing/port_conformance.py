@@ -12,6 +12,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
+from revold_identity.domain import ApiKeyNotFound
+from revold_identity.ports import ApiKeyAuth
 from revold_inventory.ports import InventoryRepository
 from revold_orders.domain import Money, Order, OrderLine, PaymentStatus
 from revold_orders.ports import OrderRepository
@@ -161,3 +165,26 @@ async def assert_charge_repository_conformance(repository: ChargeRepository) -> 
     reloaded_again = await repository.get(first.charge_id)
     assert reloaded_again is not None
     assert reloaded_again.status.value == "paid"
+
+
+async def assert_api_key_auth_conformance(auth: ApiKeyAuth) -> None:
+    """Qualquer ApiKeyAuth (Postgres, Azure SQL, fake em memória) precisa passar por
+    isto."""
+    principal, raw_key = await auth.issue(name="Parceiro ERP")
+    assert raw_key.startswith("rvld_")
+    assert principal.name == "Parceiro ERP"
+
+    resolved = await auth.resolve(raw_key)
+    assert resolved == principal
+
+    assert await auth.resolve("rvld_nao-existe") is None
+
+    await auth.revoke(principal.key_id)
+    assert await auth.resolve(raw_key) is None
+
+    with pytest.raises(ApiKeyNotFound):
+        await auth.revoke("nao-existe")
+
+    _, raw_key_a = await auth.issue(name="Parceiro A")
+    _, raw_key_b = await auth.issue(name="Parceiro B")
+    assert raw_key_a != raw_key_b
