@@ -179,23 +179,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [affected]
     if: needs.affected.outputs.python == 'true'
-    services:
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: "Y"
-          MSSQL_SA_PASSWORD: Rev0ld_ci_only_1
-        ports:
-          - 1433:1433
-        # sqlcmd roda DENTRO do container (o caminho e da propria imagem, confirmado na
-        # Fase 0/2 deste plano) -- diferente do pg_isready do Postgres, o SQL Server
-        # demora mais pra ficar pronto, por isso o start-period maior.
-        options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q 'SELECT 1' || exit 1"
-          --health-interval 10s
-          --health-timeout 10s
-          --health-retries 10
-          --health-start-period 30s
     env:
       PERSISTENCE_PROVIDER: azure-sql
       DATABASE_URL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
@@ -223,12 +206,55 @@ jobs:
           echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
       - name: Instalar o workspace
         run: uv sync --frozen
+      - name: Montar a imagem do SQL Server com Full-Text Search
+        # A imagem oficial mcr.microsoft.com/mssql/server:2022-latest NAO vem com
+        # Full-Text Search instalado -- confirmado rodando este job de verdade: a
+        # migracao do catalog (CREATE FULLTEXT CATALOG) falhava com "Full-Text Search
+        # is not installed" (erro 7609). Nao da pra instalar via `docker exec` num
+        # container ja rodando (nao pega -- so funciona se instalado ANTES do primeiro
+        # start do sqlservr, confirmado contra relatos reais de quem tentou as duas
+        # formas). Por isso este job nao usa mais `services:` (que so aceita puxar uma
+        # imagem pronta): builda a imagem com o pacote aqui, antes de subir o
+        # container.
+        run: |
+          cat <<'DOCKERFILE' > Dockerfile.mssql-fts
+          FROM mcr.microsoft.com/mssql/server:2022-latest
+          USER root
+          RUN apt-get update \
+              && ACCEPT_EULA=Y apt-get install -y mssql-server-fts \
+              && apt-get clean \
+              && rm -rf /var/lib/apt/lists/*
+          USER mssql
+          DOCKERFILE
+          docker build -t revold-mssql-fts-ci:local -f Dockerfile.mssql-fts .
+      - name: Subir o SQL Server (com Full-Text Search)
+        run: |
+          docker run -d --name mssql \
+            -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=Rev0ld_ci_only_1 \
+            -p 1433:1433 \
+            revold-mssql-fts-ci:local
+      - name: Esperar o SQL Server responder
+        # sqlcmd roda DENTRO do container -- o SQL Server demora mais pra ficar pronto
+        # que o Postgres, por isso o retry generoso.
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q 'SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::SQL Server nao respondeu a tempo."
+          docker logs mssql
+          exit 1
       - name: Criar o banco (a imagem so cria o master)
         run: sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q "CREATE DATABASE revold"
-      - name: Migracoes (no Azure SQL do service acima)
+      - name: Migracoes (no Azure SQL do container acima)
         run: uv run alembic -c alembic-azure-sql.ini upgrade head
       - name: Testes das unidades afetadas
         run: uv run dev test --affected --base "origin/${{ github.base_ref || 'main' }}" -q
+      - name: Derrubar o SQL Server
+        if: always()
+        run: docker rm -f mssql || true
 
   frontend:
     # O workspace pnpm: a lib `@revold/ui` e os dois sites. Roda so quando alguma unidade
