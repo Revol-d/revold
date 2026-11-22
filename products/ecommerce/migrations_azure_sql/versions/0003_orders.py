@@ -2,6 +2,12 @@
 Postgres -> Azure SQL, docs internos). Espelha as tabelas de
 products/ecommerce/migrations/versions/0007_orders.py (Postgres).
 
+`product_name`/`variant_label` usam `Unicode` (`NVARCHAR`), não `String`
+(`VARCHAR`) -- mesmo achado de revisão do store-settings (ver
+adapters/azure_sql/models.py): são texto livre copiado do catálogo no
+momento do pedido, sujeito ao mesmo risco de truncamento silencioso por
+colação.
+
 Revision ID: 0003
 Revises: 0002
 Create Date: 2026-11-21
@@ -39,8 +45,8 @@ def upgrade() -> None:
         sa.Column("order_id", sa.String(length=32), nullable=False),
         sa.Column("line_number", sa.Integer(), nullable=False),
         sa.Column("sku", sa.String(length=64), nullable=False),
-        sa.Column("product_name", sa.String(length=200), nullable=False),
-        sa.Column("variant_label", sa.String(length=60), nullable=False),
+        sa.Column("product_name", sa.Unicode(length=200), nullable=False),
+        sa.Column("variant_label", sa.Unicode(length=60), nullable=False),
         sa.Column("unit_price_amount", sa.Numeric(precision=10, scale=2), nullable=False),
         sa.Column("unit_price_currency", sa.String(length=3), nullable=False),
         sa.Column("quantity", sa.Integer(), nullable=False),
