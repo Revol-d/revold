@@ -5,6 +5,10 @@ products/ecommerce/migrations/versions/0005_identity_api_keys.py (Postgres).
 `DateTime(timezone=True)` mapeia sozinho para DATETIMEOFFSET no dialeto mssql --
 confirmado aqui pelo autogenerate contra um SQL Server real, não assumido.
 
+`name` usa `Unicode` (`NVARCHAR`), não `String` (`VARCHAR`) -- mesmo achado de
+revisão do store-settings (ver adapters/azure_sql/api_key_models.py): é um rótulo
+escolhido por quem emite a chave, texto livre.
+
 Revision ID: 0005
 Revises: 0004
 Create Date: 2026-11-21
@@ -27,7 +31,7 @@ def upgrade() -> None:
     op.create_table(
         "identity_api_keys",
         sa.Column("key_id", sa.String(length=36), nullable=False),
-        sa.Column("name", sa.String(length=200), nullable=False),
+        sa.Column("name", sa.Unicode(length=200), nullable=False),
         sa.Column("key_hash", sa.String(length=64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
