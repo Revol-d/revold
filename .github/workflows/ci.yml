@@ -168,13 +168,8 @@ jobs:
     # do job `tests` acima (service container real, nao so skip): os 7 dominios que
     # dependem de persistencia ja tem adapter Azure SQL (Fases 1 e 2 do plano).
     #
-    # Esta no `needs` do `ci-ok` e o `result` dele e conferido la (as duas armadilhas do
-    # `ci-ok` pedem isso -- ver o comentario la, e tests/architecture/test_ci_workflow.py
-    # que reprova se algum job ficar de fora). Mas DE PROPOSITO nao faz o `ci-ok` falhar
-    # ainda: so avisa (`::warning::`). Fica assim ate o health-check deste service
-    # container (novo, mais lento pra subir que o Postgres) provar estavel por um numero
-    # de PRs seguidos -- so entao o `case` no `ci-ok` passa a somar pra `falhou`, igual
-    # `tests`/`images` ja fazem.
+    # Obrigatorio (soma pra `falhou` no `ci-ok`, igual `tests`/`images`): o health-check
+    # deste service container ja provou estavel por um numero de PRs seguidos.
     name: Testes (Python, Azure SQL)
     runs-on: ubuntu-latest
     needs: [affected]
@@ -485,27 +480,18 @@ jobs:
         run: |
           falhou=0
 
-          # `tests` e `images` so podem ser `skipped` quando o `affected` disse que nenhuma
-          # unidade Python foi tocada. Em qualquer outro caso, skip e falha: teste que nao
-          # rodou nao aprovou.
-          for r in "${{ needs.tests.result }}" "${{ needs.images.result }}"; do
+          # `tests`, `images` e `tests-azure-sql` so podem ser `skipped` quando o
+          # `affected` disse que nenhuma unidade Python foi tocada. Em qualquer outro
+          # caso, skip e falha: teste que nao rodou nao aprovou. `tests-azure-sql` virou
+          # obrigatorio (Fase 5 do plano de migracao Postgres -> Azure SQL, docs
+          # internos, concluida): o health-check do service container provou estavel.
+          for r in "${{ needs.tests.result }}" "${{ needs.images.result }}" "${{ needs.tests-azure-sql.result }}"; do
             case "$r/${{ needs.affected.outputs.python }}" in
               success/*|skipped/false) ;;
               *) falhou=1 ;;
             esac
           done
 
-          # tests-azure-sql: Fase 5 do plano de migracao Postgres -> Azure SQL (docs
-          # internos). Esta no `needs` (resolve a armadilha 2 acima -- o job e VISTO pelo
-          # agregado) e o result dele E conferido aqui embaixo, mas DE PROPOSITO nao soma
-          # pra `falhou`: fica nao-bloqueante ate o health-check do service container
-          # (novo, mais lento que o do Postgres) provar estavel por um numero de PRs
-          # seguidos. So avisa, nao trava o merge. Promover a obrigatorio: mover o case
-          # dele pro mesmo formato do `tests`/`images` acima (soma pra `falhou`).
-          case "${{ needs.tests-azure-sql.result }}/${{ needs.affected.outputs.python }}" in
-            success/*|skipped/false) ;;
-            *) echo "::warning::tests-azure-sql terminou em '${{ needs.tests-azure-sql.result }}' -- nao-bloqueante ainda (Fase 5 do plano de migracao, ver comentario no job)." ;;
-          esac
           # O `e2e` so pode ser `skipped` quando nem a loja nem a API foram afetadas.
           case "${{ needs.e2e.result }}/${{ needs.affected.outputs.e2e }}" in
             success/*|skipped/false) ;;
@@ -531,8 +517,7 @@ jobs:
             echo "::error::Algum job do CI nao terminou em success."
             echo "  lint=${{ needs.lint.result }}  hooks=${{ needs.hooks.result }}  architecture=${{ needs.architecture.result }}  security=${{ needs.security.result }}"
             echo "  affected=${{ needs.affected.result }} (python=${{ needs.affected.outputs.python }}, web=${{ needs.affected.outputs.web }})"
-            echo "  tests=${{ needs.tests.result }}  images=${{ needs.images.result }} (skipped so vale com python=false)"
-            echo "  tests-azure-sql=${{ needs.tests-azure-sql.result }} (nao-bloqueante, Fase 5 -- ver comentario no job)"
+            echo "  tests=${{ needs.tests.result }}  images=${{ needs.images.result }}  tests-azure-sql=${{ needs.tests-azure-sql.result }} (skipped so vale com python=false)"
             echo "  frontend=${{ needs.frontend.result }}  site-images=${{ needs.site-images.result }} (skipped so vale com web=false)"
             echo "  e2e=${{ needs.e2e.result }} (skipped so vale com e2e=false)"
             exit 1
@@ -549,11 +534,4 @@ jobs:
 #
 # * Redis no job de testes: os testes marcados `integration` que dependem de Redis (o
 #   round-trip do event-worker) pulam aqui, como ja pulavam.
-#
-# * `tests-azure-sql` e nao-bloqueante: roda em todo PR afetado e esta no `needs` do
-#   `ci-ok` (o resultado dele e visto e conferido, as duas armadilhas do agregado
-#   continuam resolvidas), mas falhar so avisa (`::warning::`), nao trava o merge. Fica
-#   assim ate o health-check do service container provar estavel por tempo suficiente
-#   (Fase 5 do plano de migracao Postgres -> Azure SQL, docs internos) -- so entao vira
-#   obrigatorio de verdade.
 # ---------------------------------------------------------------------------
