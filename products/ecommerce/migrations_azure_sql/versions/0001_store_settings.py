@@ -2,6 +2,11 @@
 plano de migração Postgres -> Azure SQL, docs internos). Espelha a tabela de
 products/ecommerce/migrations/versions/0006_store_settings.py (Postgres).
 
+`store_name`/`store_address` usam `Unicode` (`NVARCHAR`), não `String`
+(`VARCHAR`) -- achado de revisão: `VARCHAR` com a colação padrão do servidor
+troca caractere fora do CP1252 por `?` ao gravar, sem erro (ver
+adapters/azure_sql/models.py).
+
 Revision ID: 0001
 Revises:
 Create Date: 2026-11-21
@@ -25,10 +30,10 @@ def upgrade() -> None:
         "store_settings",
         sa.Column("id", sa.String(length=20), nullable=False),
         sa.Column("cnpj", sa.String(length=30), nullable=False),
-        sa.Column("store_name", sa.String(length=200), nullable=False),
+        sa.Column("store_name", sa.Unicode(length=200), nullable=False),
         sa.Column("contact_email", sa.String(length=200), nullable=False),
         sa.Column("contact_phone", sa.String(length=30), nullable=False),
-        sa.Column("store_address", sa.String(length=500), nullable=False),
+        sa.Column("store_address", sa.Unicode(length=500), nullable=False),
         sa.Column("low_stock_threshold", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )

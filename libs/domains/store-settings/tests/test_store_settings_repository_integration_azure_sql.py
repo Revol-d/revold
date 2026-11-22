@@ -53,6 +53,35 @@ async def test_conformidade_da_porta_store_settings_repository(repository) -> No
     await assert_store_settings_repository_conformance(repository)
 
 
+async def test_texto_fora_do_cp1252_sobrevive_numa_sessao_nova(repository) -> None:
+    # Achado de revisão: VARCHAR com a colação padrão do servidor
+    # (SQL_Latin1_General_CP1_CI_AS) troca caractere fora do CP1252 por `?` ao
+    # gravar, sem erro -- e a mesma sessão (`expire_on_commit=False`) mascara
+    # isso, porque devolve o objeto já em memória em vez de reler do banco.
+    # Por isso este teste abre uma sessão/engine NOVA pra reler, como o teste
+    # de upsert logo abaixo já faz pra contar linhas.
+    nome_com_emoji = "Nick Roupas 🛍️"
+    await repository.save(
+        StoreSettings(
+            cnpj="",
+            store_name=nome_com_emoji,
+            contact_email="",
+            contact_phone="",
+            store_address="",
+            low_stock_threshold=5,
+        )
+    )
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        reloaded = await AzureSqlStoreSettingsRepository(fresh_session).get()
+    await engine.dispose()
+
+    assert reloaded is not None
+    assert reloaded.store_name == nome_com_emoji
+
+
 async def test_save_duas_vezes_faz_upsert_no_mesmo_registro(repository) -> None:
     await repository.save(
         StoreSettings(
