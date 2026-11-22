@@ -50,6 +50,25 @@ async def test_conformidade_da_porta_api_key_auth(auth) -> None:
     await assert_api_key_auth_conformance(auth)
 
 
+async def test_texto_fora_do_cp1252_sobrevive_numa_sessao_nova(auth) -> None:
+    # Mesmo achado de revisão do store-settings: VARCHAR com a colação padrão do
+    # servidor troca caractere fora do CP1252 por `?` ao gravar, sem erro. `issue()`
+    # devolve o nome a partir do objeto já em memória (não mascara nada aqui), por
+    # isso relê via `resolve()` numa sessão/engine nova, que é o caminho real que
+    # outro request usaria.
+    nome_com_emoji = "Parceiro ERP 🤝"
+    _, raw_key = await auth.issue(name=nome_com_emoji)
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        resolved = await AzureSqlApiKeyAuth(fresh_session).resolve(raw_key)
+    await engine.dispose()
+
+    assert resolved is not None
+    assert resolved.name == nome_com_emoji
+
+
 async def test_issue_grava_so_o_hash_nunca_o_texto_puro(auth) -> None:
     principal, raw_key = await auth.issue(name="Parceiro ERP")
 
