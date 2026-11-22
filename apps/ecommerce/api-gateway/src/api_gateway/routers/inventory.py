@@ -103,5 +103,8 @@ async def receive_stock(
 ) -> StockLevelSchema:
     # Reposição de estoque: uso administrativo (papel STAFF/ADMIN via
     # RBAC, ver ADR-0010 e api_gateway.security.require_any_role).
-    stock = await ReceiveStock(repository).execute(sku, body.quantity)
+    try:
+        stock = await ReceiveStock(repository).execute(sku, body.quantity)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _stock_to_schema(stock)
