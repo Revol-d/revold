@@ -17,10 +17,15 @@ reconhecida nessa build). `VECTOR_DISTANCE` funciona normalmente sem índice
 sem essa trava de escrita. Criar o índice fica para quando a versão
 DML-friendly estiver disponível de forma confiável (tarefa operacional
 futura, fora desta migração).
+
+`name`/`description` usam `Unicode`/`UnicodeText` (`NVARCHAR`/`NTEXT`), não
+`String`/`Text` (`VARCHAR`/`TEXT`) -- achado de revisão do store-settings:
+`VARCHAR`/`TEXT` com a colação padrão do servidor trocam caractere fora do
+CP1252 por `?` ao gravar, sem erro.
 """
 from __future__ import annotations
 
-from sqlalchemy import String, Text
+from sqlalchemy import String, Unicode, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column
 
 from revold_ai_assistant.adapters.azure_sql.vector_type import Vector
@@ -33,6 +38,6 @@ class ProductIndexModel(Base):
     __tablename__ = "ai_assistant_product_index"
 
     sku: Mapped[str] = mapped_column(String(64), primary_key=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    name: Mapped[str] = mapped_column(Unicode(255), nullable=False)
+    description: Mapped[str] = mapped_column(UnicodeText, nullable=False, default="")
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=False)

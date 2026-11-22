@@ -27,7 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from revold_catalog.adapters.azure_sql.repository import AzureSqlProductRepository
-from revold_catalog.domain import Category, Money, Product
+from revold_catalog.domain import Category, Money, Product, ProductVariant
 from revold_testing.port_conformance import (
     assert_product_repository_bulk_roundtrip,
     assert_product_repository_conformance,
@@ -93,6 +93,35 @@ async def test_conformidade_da_porta_product_repository(repository) -> None:
 
 async def test_lote_de_produtos_realistas_e_unicode(repository) -> None:
     await assert_product_repository_bulk_roundtrip(repository)
+
+
+async def test_texto_fora_do_cp1252_sobrevive_numa_sessao_nova(
+    repository: AzureSqlProductRepository, camisetas: Category
+) -> None:
+    # Mesmo achado de revisão do store-settings: VARCHAR/TEXT com a colação
+    # padrão do servidor trocam caractere fora do CP1252 por `?` ao gravar, sem
+    # erro, e a mesma sessão (expire_on_commit=False) mascara isso -- por isso
+    # relê numa sessão/engine nova, não pela mesma fixture `repository`.
+    produto = Product(
+        sku="CAM-EMOJI",
+        name="Camiseta 🛍️",
+        description="Descrição com emoji 🎉 e acento: coração",
+        category=camisetas,
+        price=Money(Decimal("50")),
+        variants=[ProductVariant(sku="CAM-EMOJI-P", size="P", color="Rosé 🌸", in_stock=True)],
+    )
+    await repository.save_product(produto)
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        reloaded = await AzureSqlProductRepository(fresh_session).get_product("CAM-EMOJI")
+    await engine.dispose()
+
+    assert reloaded is not None
+    assert reloaded.name == "Camiseta 🛍️"
+    assert reloaded.description == "Descrição com emoji 🎉 e acento: coração"
+    assert reloaded.variants[0].color == "Rosé 🌸"
 
 
 class TestBuscaFullTextDoAzureSql:
