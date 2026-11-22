@@ -25,12 +25,23 @@ class Category:
     name: str
 
 
+def _validar_sku(sku: str) -> None:
+    # SQL Server ignora espaço no final ao comparar VARCHAR/NVARCHAR (mesmo com
+    # colação binária): "abc-1" e "abc-1 " caem na mesma linha da chave primária
+    # e um sobrescreve o outro sem erro, igual ao achado do #23 (maiúsculas).
+    if sku != sku.strip():
+        raise ValueError(f"sku '{sku}' não pode ter espaços no início ou no fim")
+
+
 @dataclass(frozen=True, slots=True)
 class ProductVariant:
     sku: str
     size: str
     color: str
     in_stock: bool
+
+    def __post_init__(self) -> None:
+        _validar_sku(self.sku)
 
 
 @dataclass(slots=True)
@@ -43,6 +54,9 @@ class Product:
     images: list[str] = field(default_factory=list)
     description: str = ""
     original_price: Money | None = None
+
+    def __post_init__(self) -> None:
+        _validar_sku(self.sku)
 
     def is_available(self) -> bool:
         return any(variant.in_stock for variant in self.variants)

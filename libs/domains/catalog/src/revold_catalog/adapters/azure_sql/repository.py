@@ -43,16 +43,31 @@ def _normalize_accents(term: str) -> str:
     return term.translate(_ACCENT_TABLE)
 
 
-def _build_search_condition(term: str) -> str:
-    """Monta o literal SQL do 3º argumento do CONTAINSTABLE. Aspas duplas são
-    removidas (sem uso legítimo numa busca de produto; evita ambiguidade de escape
-    dentro da linguagem do full-text predicate, que não documenta um jeito de
-    escapar `"` dentro de uma frase). Aspas simples são dobradas (escape padrão de
-    literal de string do T-SQL, para o literal SQL em si)."""
+def _build_search_condition(term: str) -> str | None:
+    """Monta o literal SQL do 3º argumento do CONTAINSTABLE -- uma cláusula
+    `FORMSOF(INFLECTIONAL, "palavra")` por palavra do termo, unidas por AND, não um
+    `FORMSOF` só com a frase inteira.
+
+    Achado de revisão: `FORMSOF(INFLECTIONAL, "vestido azul")` (frase única) exige as
+    palavras adjacentes nessa ordem -- "Vestido Longo Azul" não bate, porque "Longo"
+    separa as duas. Uma cláusula por palavra, em AND, reproduz o comportamento do
+    `plainto_tsquery` do Postgres (`'vestido' & 'azul'`): todas as palavras em
+    qualquer ordem/posição.
+
+    Aspas duplas e `*` são removidos de cada palavra (sem uso legítimo numa busca de
+    produto; `*` é operador de prefixo do full-text e abre erro de sintaxe dentro de
+    `FORMSOF`, que não aceita wildcard). Aspas simples são dobradas (escape padrão de
+    literal de string do T-SQL, para o literal SQL em si). Se não sobrar nenhuma
+    palavra depois da sanitização (ex.: termo era só "*"), devolve None -- quem chama
+    trata como se não houvesse busca."""
     normalized = _normalize_accents(term)
-    sanitized = normalized.replace('"', "")
-    escaped = sanitized.replace("'", "''")
-    return f'N\'FORMSOF(INFLECTIONAL, "{escaped}")\''
+    words = [w.replace('"', "").replace("*", "") for w in normalized.split()]
+    words = [w for w in words if w]
+    if not words:
+        return None
+    escaped_words = [w.replace("'", "''") for w in words]
+    clauses = [f'FORMSOF(INFLECTIONAL, "{w}")' for w in escaped_words]
+    return "N'" + " AND ".join(clauses) + "'"
 
 
 def _to_domain(model: ProductModel) -> Product:
@@ -118,8 +133,8 @@ class AzureSqlProductRepository:
             count_query = count_query.where(ProductModel.category_slug == category_slug)
 
         rank_column = None
-        if search_query:
-            condition = _build_search_condition(search_query)
+        condition = _build_search_condition(search_query) if search_query else None
+        if condition is not None:
             fts = func.CONTAINSTABLE(
                 literal_column("catalog_products"),
                 literal_column("search_text"),

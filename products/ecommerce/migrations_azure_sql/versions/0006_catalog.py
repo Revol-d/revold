@@ -18,6 +18,10 @@ erro. `search_text` segue o mesmo tipo porque `TRANSLATE` opera sobre `name`/
 `description` -- se eles são Unicode, o resultado computado também precisa ser,
 senão a corrupção reaparece no armazenamento da própria coluna computada.
 
+`sku`/`product_sku` usam `Unicode` com colação binária, mesmo achado do #23
+(inventory): com a colação padrão do servidor, SKUs que só diferem em maiúsculas
+(ou fora do CP1252) dividiriam a mesma linha da chave primária, sem erro.
+
 Revision ID: 0006
 Revises: 0005
 Create Date: 2026-11-21
@@ -45,7 +49,11 @@ def upgrade() -> None:
     )
     op.create_table(
         "catalog_products",
-        sa.Column("sku", sa.String(length=64), nullable=False),
+        sa.Column(
+            "sku",
+            sa.Unicode(length=64, collation="Latin1_General_100_BIN2"),
+            nullable=False,
+        ),
         sa.Column("name", sa.Unicode(length=200), nullable=False),
         sa.Column("description", sa.UnicodeText(), nullable=False),
         sa.Column("category_slug", sa.String(length=120), nullable=False),
@@ -72,8 +80,16 @@ def upgrade() -> None:
     )
     op.create_table(
         "catalog_product_variants",
-        sa.Column("sku", sa.String(length=64), nullable=False),
-        sa.Column("product_sku", sa.String(length=64), nullable=False),
+        sa.Column(
+            "sku",
+            sa.Unicode(length=64, collation="Latin1_General_100_BIN2"),
+            nullable=False,
+        ),
+        sa.Column(
+            "product_sku",
+            sa.Unicode(length=64, collation="Latin1_General_100_BIN2"),
+            nullable=False,
+        ),
         sa.Column("size", sa.String(length=20), nullable=False),
         sa.Column("color", sa.Unicode(length=60), nullable=False),
         sa.Column("in_stock", sa.Boolean(), nullable=False),

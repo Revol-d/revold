@@ -19,6 +19,9 @@ import):
    do store-settings: `VARCHAR`/`TEXT` com a colação padrão do servidor trocam
    caractere fora do CP1252 por `?` ao gravar, sem erro. `search_text` segue o
    mesmo tipo porque `TRANSLATE` opera sobre `name`/`description`.
+4. `sku`/`product_sku` usam `Unicode` com colação binária, não `String` puro -- mesmo
+   achado do #23 (inventory): com a colação padrão do servidor, SKUs que só diferem
+   em maiúsculas (ou fora do CP1252) dividiriam a mesma linha, sem erro.
 """
 from __future__ import annotations
 
@@ -28,6 +31,9 @@ from sqlalchemy import JSON, Computed, ForeignKey, Index, Numeric, String, Unico
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from revold_azure_sql.db import Base
+
+# Mesma colação usada em inventory (#23): compara o valor exato, como o Postgres faz.
+SKU_COLLATION = "Latin1_General_100_BIN2"
 
 # Mesmo mapeamento usado em repository.py pra normalizar o termo de busca do lado do
 # app -- as duas pontas (coluna indexada e termo buscado) precisam passar pela MESMA
@@ -50,7 +56,7 @@ class ProductModel(Base):
     __tablename__ = "catalog_products"
     __table_args__ = (Index("ix_catalog_products_category_slug", "category_slug"),)
 
-    sku: Mapped[str] = mapped_column(String(64), primary_key=True)
+    sku: Mapped[str] = mapped_column(Unicode(64, collation=SKU_COLLATION), primary_key=True)
     name: Mapped[str] = mapped_column(Unicode(200), nullable=False)
     description: Mapped[str] = mapped_column(UnicodeText, default="")
     category_slug: Mapped[str] = mapped_column(ForeignKey("catalog_categories.slug"))
@@ -78,8 +84,10 @@ class ProductVariantModel(Base):
     __tablename__ = "catalog_product_variants"
     __table_args__ = (Index("ix_catalog_variants_product_sku", "product_sku"),)
 
-    sku: Mapped[str] = mapped_column(String(64), primary_key=True)
-    product_sku: Mapped[str] = mapped_column(ForeignKey("catalog_products.sku"))
+    sku: Mapped[str] = mapped_column(Unicode(64, collation=SKU_COLLATION), primary_key=True)
+    product_sku: Mapped[str] = mapped_column(
+        Unicode(64, collation=SKU_COLLATION), ForeignKey("catalog_products.sku")
+    )
     size: Mapped[str] = mapped_column(String(20), nullable=False)
     color: Mapped[str] = mapped_column(Unicode(60), nullable=False)
     in_stock: Mapped[bool] = mapped_column(default=True)

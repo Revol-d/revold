@@ -124,6 +124,52 @@ async def test_texto_fora_do_cp1252_sobrevive_numa_sessao_nova(
     assert reloaded.variants[0].color == "Rosé 🌸"
 
 
+@pytest.mark.parametrize(
+    ("primeiro_sku", "segundo_sku"),
+    [("cam-001", "CAM-001"), ("SKU-日本", "SKU-中国")],
+)
+async def test_skus_de_produto_diferentes_nao_compartilham_a_mesma_linha(
+    repository: AzureSqlProductRepository,
+    camisetas: Category,
+    primeiro_sku: str,
+    segundo_sku: str,
+) -> None:
+    # Mesmo achado do #23 (inventory): com a colação padrão do servidor, SKUs que só
+    # diferem em maiúsculas (ou fora do CP1252) dividiriam a mesma linha da chave
+    # primária, sem erro. Relê numa sessão/engine nova, como o teste de emoji acima.
+    await repository.save_product(
+        Product(
+            sku=primeiro_sku,
+            name="Produto um",
+            category=camisetas,
+            price=Money(Decimal("10")),
+            variants=[],
+        )
+    )
+    await repository.save_product(
+        Product(
+            sku=segundo_sku,
+            name="Produto dois",
+            category=camisetas,
+            price=Money(Decimal("20")),
+            variants=[],
+        )
+    )
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        fresh_repository = AzureSqlProductRepository(fresh_session)
+        primeiro = await fresh_repository.get_product(primeiro_sku)
+        segundo = await fresh_repository.get_product(segundo_sku)
+    await engine.dispose()
+
+    assert primeiro is not None
+    assert segundo is not None
+    assert (primeiro.sku, primeiro.name) == (primeiro_sku, "Produto um")
+    assert (segundo.sku, segundo.name) == (segundo_sku, "Produto dois")
+
+
 class TestBuscaFullTextDoAzureSql:
     """Específicos do Azure SQL (CONTAINSTABLE + FORMSOF + TRANSLATE) -- ver a
     nota longa em adapters/azure_sql/repository.py. Confirma resultado
@@ -237,3 +283,49 @@ class TestBuscaFullTextDoAzureSql:
             category_slug=None, page=1, page_size=10, search_query="listrada", sort="relevance"
         )
         assert [p.sku for p in items] == ["A-MAIS-RELEVANTE", "Z-MENOS-RELEVANTE"]
+
+    async def test_busca_com_varias_palavras_acha_produto_com_palavra_no_meio(
+        self, repository: AzureSqlProductRepository, camisetas: Category
+    ) -> None:
+        # Achado de revisão: FORMSOF(INFLECTIONAL, "vestido azul") como frase única
+        # exige as palavras adjacentes nessa ordem -- "Vestido Longo Azul" não batia,
+        # porque "Longo" separa as duas. Corrigido para uma cláusula AND por palavra.
+        await repository.save_product(
+            Product(
+                sku="VES-001",
+                name="Vestido Longo Azul",
+                category=camisetas,
+                price=Money(Decimal("249.90")),
+                variants=[],
+            )
+        )
+        await _wait_fulltext_populated(repository._session)
+
+        items, total = await repository.list_products(
+            category_slug=None, page=1, page_size=10, search_query="vestido azul"
+        )
+        assert total == 1
+        assert items[0].sku == "VES-001"
+
+    @pytest.mark.parametrize("termo", ["*", "vestido*"])
+    async def test_busca_com_asterisco_nao_quebra(
+        self, repository: AzureSqlProductRepository, camisetas: Category, termo: str
+    ) -> None:
+        # Achado de revisão: "*" sobrevivia à sanitização e ia pro FORMSOF como
+        # literal, que não aceita wildcard -- o full-text recusava a sintaxe e a
+        # chamada virava erro 500 em vez de uma resposta normal.
+        await repository.save_product(
+            Product(
+                sku="VES-002",
+                name="Vestido Longo Azul",
+                category=camisetas,
+                price=Money(Decimal("249.90")),
+                variants=[],
+            )
+        )
+        await _wait_fulltext_populated(repository._session)
+
+        items, total = await repository.list_products(
+            category_slug=None, page=1, page_size=10, search_query=termo
+        )
+        assert total == len(items)
