@@ -1,7 +1,7 @@
 """Modelos SQLAlchemy do catálogo no Azure SQL. Vivem só no adapter -- revold_catalog
 não os conhece.
 
-Duas diferenças reais em relação a adapters/postgres/models.py (não são só troca de
+Três diferenças reais em relação a adapters/postgres/models.py (não são só troca de
 import):
 
 1. `images`: era `ARRAY(String)` (só existe no Postgres) -- vira `JSON` aqui (decisão
@@ -14,12 +14,17 @@ import):
    O índice full-text em cima desta coluna é criado na migração via SQL cru (não dá
    pra expressar `CREATE FULLTEXT INDEX` como metadata do SQLAlchemy) -- ver
    adapters/azure_sql/repository.py para como a busca usa isso.
+3. `name`/`description`/`search_text`/`color` usam `Unicode`/`UnicodeText`
+   (`NVARCHAR`/`NTEXT`), não `String`/`Text` (`VARCHAR`/`TEXT`) -- achado de revisão
+   do store-settings: `VARCHAR`/`TEXT` com a colação padrão do servidor trocam
+   caractere fora do CP1252 por `?` ao gravar, sem erro. `search_text` segue o
+   mesmo tipo porque `TRANSLATE` opera sobre `name`/`description`.
 """
 from __future__ import annotations
 
 from decimal import Decimal
 
-from sqlalchemy import JSON, Computed, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import JSON, Computed, ForeignKey, Index, Numeric, String, Unicode, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from revold_azure_sql.db import Base
@@ -36,7 +41,7 @@ class CategoryModel(Base):
     __tablename__ = "catalog_categories"
 
     slug: Mapped[str] = mapped_column(String(120), primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    name: Mapped[str] = mapped_column(Unicode(200), nullable=False)
 
     products: Mapped[list["ProductModel"]] = relationship(back_populates="category")
 
@@ -46,15 +51,15 @@ class ProductModel(Base):
     __table_args__ = (Index("ix_catalog_products_category_slug", "category_slug"),)
 
     sku: Mapped[str] = mapped_column(String(64), primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[str] = mapped_column(Text, default="")
+    name: Mapped[str] = mapped_column(Unicode(200), nullable=False)
+    description: Mapped[str] = mapped_column(UnicodeText, default="")
     category_slug: Mapped[str] = mapped_column(ForeignKey("catalog_categories.slug"))
     price_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     price_currency: Mapped[str] = mapped_column(String(3), default="BRL")
     original_price_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     images: Mapped[list[str]] = mapped_column(JSON, default=list)
     search_text: Mapped[str | None] = mapped_column(
-        Text,
+        UnicodeText,
         Computed(
             "TRANSLATE(COALESCE(name, N'') + N' ' + COALESCE(description, N''), "
             f"N'{ACCENTED_CHARS}', N'{PLAIN_CHARS}')",
@@ -76,7 +81,7 @@ class ProductVariantModel(Base):
     sku: Mapped[str] = mapped_column(String(64), primary_key=True)
     product_sku: Mapped[str] = mapped_column(ForeignKey("catalog_products.sku"))
     size: Mapped[str] = mapped_column(String(20), nullable=False)
-    color: Mapped[str] = mapped_column(String(60), nullable=False)
+    color: Mapped[str] = mapped_column(Unicode(60), nullable=False)
     in_stock: Mapped[bool] = mapped_column(default=True)
 
     product: Mapped[ProductModel] = relationship(back_populates="variants")

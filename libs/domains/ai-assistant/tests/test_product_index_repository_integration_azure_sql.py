@@ -51,3 +51,35 @@ async def repository():
 
 async def test_conformidade_da_porta_product_index(repository) -> None:
     await assert_product_index_conformance(repository)
+
+
+async def test_texto_fora_do_cp1252_sobrevive_numa_sessao_nova(repository) -> None:
+    # Mesmo achado de revisão do store-settings: VARCHAR/TEXT com a colação
+    # padrão do servidor trocam caractere fora do CP1252 por `?` ao gravar, sem
+    # erro. O `upsert` grava via SQL cru, não ORM (ver repository.py) -- o
+    # risco de mascaramento por sessão/identity map não existe aqui, mas o
+    # teste relê numa sessão/engine nova mesmo assim, pra ficar explícito.
+    embedding = [0.0] * 1536
+    embedding[0] = 1.0
+    await repository.upsert(
+        sku="CAM-EMOJI",
+        name="Camiseta 🛍️",
+        description="Descrição com emoji 🎉 e acento: coração",
+        embedding=embedding,
+    )
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        resultados = await AzureSqlProductIndexRepository(fresh_session).search(
+            embedding=embedding, limit=1
+        )
+        description = (
+            await fresh_session.execute(
+                text("SELECT description FROM ai_assistant_product_index WHERE sku = 'CAM-EMOJI'")
+            )
+        ).scalar_one()
+    await engine.dispose()
+
+    assert resultados[0].name == "Camiseta 🛍️"
+    assert description == "Descrição com emoji 🎉 e acento: coração"

@@ -10,6 +10,14 @@ por isso o bloco usa `op.get_context().autocommit_block()`, o jeito documentado
 do próprio Alembic pra DDL que exige autocommit (CREATE DATABASE, ALTER DATABASE,
 e esta).
 
+`name`/`description`/`search_text`/`color` usam `Unicode`/`UnicodeText`
+(`NVARCHAR`/`NTEXT`), não `String`/`Text` (`VARCHAR`/`TEXT`) -- achado de revisão
+do store-settings (ver adapters/azure_sql/models.py): `VARCHAR`/`TEXT` com a
+colação padrão do servidor trocam caractere fora do CP1252 por `?` ao gravar, sem
+erro. `search_text` segue o mesmo tipo porque `TRANSLATE` opera sobre `name`/
+`description` -- se eles são Unicode, o resultado computado também precisa ser,
+senão a corrupção reaparece no armazenamento da própria coluna computada.
+
 Revision ID: 0006
 Revises: 0005
 Create Date: 2026-11-21
@@ -32,14 +40,14 @@ def upgrade() -> None:
     op.create_table(
         "catalog_categories",
         sa.Column("slug", sa.String(length=120), nullable=False),
-        sa.Column("name", sa.String(length=200), nullable=False),
+        sa.Column("name", sa.Unicode(length=200), nullable=False),
         sa.PrimaryKeyConstraint("slug"),
     )
     op.create_table(
         "catalog_products",
         sa.Column("sku", sa.String(length=64), nullable=False),
-        sa.Column("name", sa.String(length=200), nullable=False),
-        sa.Column("description", sa.Text(), nullable=False),
+        sa.Column("name", sa.Unicode(length=200), nullable=False),
+        sa.Column("description", sa.UnicodeText(), nullable=False),
         sa.Column("category_slug", sa.String(length=120), nullable=False),
         sa.Column("price_amount", sa.Numeric(precision=10, scale=2), nullable=False),
         sa.Column("price_currency", sa.String(length=3), nullable=False),
@@ -47,7 +55,7 @@ def upgrade() -> None:
         sa.Column("images", sa.JSON(), nullable=False),
         sa.Column(
             "search_text",
-            sa.Text(),
+            sa.UnicodeText(),
             sa.Computed(
                 "TRANSLATE(COALESCE(name, N'') + N' ' + COALESCE(description, N''), "
                 "N'áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ', "
@@ -67,7 +75,7 @@ def upgrade() -> None:
         sa.Column("sku", sa.String(length=64), nullable=False),
         sa.Column("product_sku", sa.String(length=64), nullable=False),
         sa.Column("size", sa.String(length=20), nullable=False),
-        sa.Column("color", sa.String(length=60), nullable=False),
+        sa.Column("color", sa.Unicode(length=60), nullable=False),
         sa.Column("in_stock", sa.Boolean(), nullable=False),
         sa.ForeignKeyConstraint(["product_sku"], ["catalog_products.sku"]),
         sa.PrimaryKeyConstraint("sku"),

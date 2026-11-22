@@ -11,6 +11,10 @@ no Azure SQL Database real, e mesmo um SQL Server 2025 em caixa cria a versão
 antiga (tabela somente-leitura). `VECTOR_DISTANCE` funciona sem índice (scan
 completo); criar o índice fica para uma tarefa operacional futura.
 
+`name`/`description` usam `Unicode`/`UnicodeText` (`NVARCHAR`/`NTEXT`), não
+`String`/`Text` (`VARCHAR`/`TEXT`) -- achado de revisão do store-settings (ver
+adapters/azure_sql/models.py).
+
 Revision ID: 0007
 Revises: 0006
 Create Date: 2026-11-21
@@ -34,8 +38,8 @@ def upgrade() -> None:
     op.create_table(
         "ai_assistant_product_index",
         sa.Column("sku", sa.String(length=64), nullable=False),
-        sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("description", sa.Text(), nullable=False),
+        sa.Column("name", sa.Unicode(length=255), nullable=False),
+        sa.Column("description", sa.UnicodeText(), nullable=False),
         sa.Column("embedding", Vector(1536), nullable=False),
         sa.PrimaryKeyConstraint("sku"),
     )
