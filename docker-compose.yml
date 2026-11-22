@@ -22,13 +22,15 @@ services:
     # mexe com a migracao Postgres -> Azure SQL ainda (ver o plano, docs internos). Durante a
     # troca, os dois bancos convivem; o default continua sendo o `postgres` acima. Precisa do
     # ODBC Driver 17/18 for SQL Server instalado na maquina que roda os testes/app fora do
-    # container (nao e empacotado aqui, e componente de sistema operacional). Diferente do
-    # Postgres, essa imagem NAO cria o banco `revold` sozinha -- rode uma vez, depois do
-    # container de pe:
-    #   docker compose exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa \
-    #     -P revold_dev_only_1 -Q "CREATE DATABASE revold"
+    # container (nao e empacotado aqui, e componente de sistema operacional).
+    #
+    # Imagem propria (deploy/docker/mssql/): a oficial nao tem Full-Text Search
+    # instalado nem cria o banco `revold` sozinha, e precisa do motor 2025 (nao
+    # 2022) para o tipo nativo VECTOR que a migracao do ai-assistant usa -- ver o
+    # Dockerfile para os achados reais e como foram verificados.
     profiles: ["azure-sql"]
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    build:
+      context: deploy/docker/mssql
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
@@ -38,7 +40,10 @@ services:
     volumes:
       - mssql_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q 'SELECT 1' || exit 1"]
+      # Confere o banco `revold`, nao so "SELECT 1" -- o entrypoint aceita conexao
+      # ANTES de terminar de criar o banco (corrida entre o sqlservr aceitar
+      # conexao e o entrypoint rodar o CREATE DATABASE).
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q \"SELECT 1 FROM sys.databases WHERE name = 'revold'\" | grep -q '(1 rows affected)' || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 10
