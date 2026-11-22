@@ -16,6 +16,34 @@ services:
       timeout: 5s
       retries: 10
 
+  mssql:
+    # Opt-in (profile `azure-sql`): "docker compose --profile azure-sql up", nao o `make dev`
+    # comum -- senao todo mundo baixaria e subiria esse container sempre, mesmo quem nao
+    # mexe com a migracao Postgres -> Azure SQL ainda (ver o plano, docs internos). Durante a
+    # troca, os dois bancos convivem; o default continua sendo o `postgres` acima. Precisa do
+    # ODBC Driver 17/18 for SQL Server instalado na maquina que roda os testes/app fora do
+    # container (nao e empacotado aqui, e componente de sistema operacional). Diferente do
+    # Postgres, essa imagem NAO cria o banco `revold` sozinha -- rode uma vez, depois do
+    # container de pe:
+    #   docker compose exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa \
+    #     -P revold_dev_only_1 -Q "CREATE DATABASE revold"
+    profiles: ["azure-sql"]
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: revold_dev_only_1
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -208,6 +236,7 @@ services:
 
 volumes:
   postgres_data:
+  mssql_data:
   media_data:
   prometheus_data:
   grafana_data:

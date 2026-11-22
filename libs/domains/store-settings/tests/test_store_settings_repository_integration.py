@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from revold_store_settings.adapters.postgres.repository import PostgresStoreSettingsRepository
 from revold_store_settings.domain import StoreSettings
+from revold_testing.port_conformance import assert_store_settings_repository_conformance
 
 pytestmark = pytest.mark.integration
 
@@ -42,24 +43,11 @@ async def repository():
     await engine.dispose()
 
 
-async def test_get_devolve_none_quando_nada_foi_salvo(repository) -> None:
-    assert await repository.get() is None
-
-
-async def test_save_depois_get_devolve_o_mesmo_registro(repository) -> None:
-    settings = StoreSettings(
-        cnpj="12.345.678/0001-95",
-        store_name="Nick Roupas",
-        contact_email="contato@nick.com.br",
-        contact_phone="+55 11 90000-0000",
-        store_address="Rua das Flores, 123",
-        low_stock_threshold=3,
-    )
-
-    await repository.save(settings)
-    reloaded = await repository.get()
-
-    assert reloaded == settings
+async def test_conformidade_da_porta_store_settings_repository(repository) -> None:
+    """Prova mecânica de que o adapter Postgres satisfaz a mesma porta que o adapter
+    Azure SQL (test_store_settings_repository_integration_azure_sql.py chama a
+    mesma função) -- ver tests/support/revold_testing/port_conformance.py."""
+    await assert_store_settings_repository_conformance(repository)
 
 
 async def test_save_duas_vezes_faz_upsert_no_mesmo_registro(repository) -> None:
