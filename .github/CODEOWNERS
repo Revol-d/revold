@@ -28,7 +28,6 @@
 /libs/integrations/mercado-pago/           @SamuelSMatos @dmourans
 /libs/integrations/messaging/              @SamuelSMatos @dmourans
 /libs/integrations/openai/                 @SamuelSMatos @dmourans
-/libs/integrations/postgres/               @SamuelSMatos @dmourans
 /libs/integrations/prometheus/             @SamuelSMatos @dmourans
 /libs/integrations/redis/                  @SamuelSMatos @dmourans
 /libs/integrations/smtp/                   @SamuelSMatos @dmourans
@@ -72,7 +71,6 @@
 /libs/integrations/mercado-pago/unit.yaml  @SamuelSMatos @dmourans
 /libs/integrations/messaging/unit.yaml     @SamuelSMatos @dmourans
 /libs/integrations/openai/unit.yaml        @SamuelSMatos @dmourans
-/libs/integrations/postgres/unit.yaml      @SamuelSMatos @dmourans
 /libs/integrations/prometheus/unit.yaml    @SamuelSMatos @dmourans
 /libs/integrations/redis/unit.yaml         @SamuelSMatos @dmourans
 /libs/integrations/smtp/unit.yaml          @SamuelSMatos @dmourans

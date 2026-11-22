@@ -2,8 +2,8 @@ output "api_gateway_url" {
   value = module.container_apps.api_gateway_fqdn
 }
 
-output "postgres_fqdn" {
-  value = module.postgres.server_fqdn
+output "azure_sql_fqdn" {
+  value = module.azure_sql.server_fqdn
 }
 
 output "key_vault_uri" {

@@ -36,7 +36,7 @@ from revold_testing.store_settings_factories import StoreSettingsFactory
 async def assert_store_settings_repository_conformance(
     repository: StoreSettingsRepository,
 ) -> None:
-    """Qualquer StoreSettingsRepository (Postgres, Azure SQL, fake em memória)
+    """Qualquer StoreSettingsRepository (Azure SQL, fake em memória)
     precisa passar por isto. Assume o repositório vazio ao receber (quem chama cuida
     de limpar o estado antes, ver as fixtures `repository` de cada teste de
     integração)."""
@@ -54,7 +54,7 @@ async def assert_store_settings_repository_conformance(
 
 
 async def assert_inventory_repository_conformance(repository: InventoryRepository) -> None:
-    """Qualquer InventoryRepository (Postgres, Azure SQL, fake em memória) precisa
+    """Qualquer InventoryRepository (Azure SQL, fake em memória) precisa
     passar por isto. Usa um SKU próprio (`StockLevelFactory` gera um aleatório) para
     não colidir com outros registros que já estejam no repositório."""
     stock = StockLevelFactory()
@@ -96,7 +96,7 @@ def _build_order(order_id: str) -> Order:
 
 
 async def assert_order_repository_conformance(repository: OrderRepository) -> None:
-    """Qualquer OrderRepository (Postgres, Azure SQL, fake em memória) precisa passar
+    """Qualquer OrderRepository (Azure SQL, fake em memória) precisa passar
     por isto. Assume o repositório vazio ao receber."""
     assert await repository.get("nao-existe") is None
 
@@ -143,7 +143,7 @@ def _build_charge(charge_id: str, order_id: str, *, created_at: str) -> Charge:
 
 
 async def assert_charge_repository_conformance(repository: ChargeRepository) -> None:
-    """Qualquer ChargeRepository (Postgres, Azure SQL, fake em memória) precisa
+    """Qualquer ChargeRepository (Azure SQL, fake em memória) precisa
     passar por isto. Assume o repositório vazio ao receber."""
     assert await repository.get("nao-existe") is None
 
@@ -173,7 +173,7 @@ async def assert_charge_repository_conformance(repository: ChargeRepository) -> 
 
 
 async def assert_api_key_auth_conformance(auth: ApiKeyAuth) -> None:
-    """Qualquer ApiKeyAuth (Postgres, Azure SQL, fake em memória) precisa passar por
+    """Qualquer ApiKeyAuth (Azure SQL, fake em memória) precisa passar por
     isto."""
     principal, raw_key = await auth.issue(name="Parceiro ERP")
     assert raw_key.startswith("rvld_")
@@ -196,7 +196,7 @@ async def assert_api_key_auth_conformance(auth: ApiKeyAuth) -> None:
 
 
 async def assert_product_repository_conformance(repository: ProductRepository) -> None:
-    """Qualquer ProductRepository (Postgres, Azure SQL, fake em memória) precisa
+    """Qualquer ProductRepository (Azure SQL, fake em memória) precisa
     passar por isto. **Não cobre busca full-text** -- o ranking de relevância é
     definido por adapter (ver docstring da porta e ADR da migração), então os
     testes de busca ficam no arquivo de integração de cada adapter, não aqui.
@@ -349,7 +349,7 @@ def _basis_vector(dimension_with_one: int) -> list[float]:
 
 
 async def assert_product_index_conformance(index: ProductIndex) -> None:
-    """Qualquer ProductIndex (Postgres+pgvector, Azure SQL+VECTOR/DiskANN, fake em
+    """Qualquer ProductIndex (Azure SQL+VECTOR/DiskANN, fake em
     memória) precisa passar por isto. Assume o índice vazio ao receber."""
     assert await index.search(embedding=_basis_vector(0), limit=5) == []
 

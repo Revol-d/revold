@@ -3,7 +3,7 @@
 A primeira implementação (revold_cart.adapters.redis.repository) usa
 Redis com TTL — o carrinho é efêmero por natureza (ver ADR de stack: Redis
 já fazia parte da arquitetura para cache/sessão). Nada aqui depende de Redis
-especificamente; um adapter Postgres seria só uma segunda implementação
+especificamente; um adapter de outro provedor seria só uma segunda implementação
 desta porta, se um dia fizer sentido (ex.: carrinho "salvo" por muito tempo
 para usuário logado).
 """

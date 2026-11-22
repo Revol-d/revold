@@ -17,7 +17,6 @@ dependencies = [
     "revold-orders",
     "revold-payments",
     "revold-platform",
-    "revold-postgres",
     "revold-azure-sql",
     "revold-prometheus",
     "revold-redis",
@@ -29,7 +28,6 @@ dependencies = [
     "redis>=5.0.8,<6",
     "sqlalchemy>=2.0.35,<3",
     "alembic>=1.13.3,<2",
-    "psycopg2-binary>=2.9.9,<3",
     "pyodbc>=5.1,<6",
 ]
 

@@ -1,6 +1,6 @@
 """Portas (interfaces) que `catalog` espera que a infraestrutura implemente.
 
-Qualquer adapter (Postgres, um fake em memória para teste, etc.) implementa
+Qualquer adapter (Azure SQL, um fake em memória para teste, etc.) implementa
 este Protocol. `catalog` nunca importa SQLAlchemy nem nenhum driver de banco.
 """
 from __future__ import annotations

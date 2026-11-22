@@ -1,7 +1,7 @@
 """Tarefa Celery genérica que consome eventos publicados por
 revold_messaging.celery_publisher.CeleryEventPublisher (ADR-0013).
 
-Só monta as dependências reais (Postgres, o LLMProvider/NotificationChannel
+Só monta as dependências reais (Azure SQL, o LLMProvider/NotificationChannel
 configurados via LLM_PROVIDER/NOTIFICATION_PROVIDER) e chama
 revold_ecommerce.application.event_handlers, que é quem tem a lógica de
 verdade (testada com fakes, sem infraestrutura, em
@@ -34,14 +34,7 @@ logger = logging.getLogger(__name__)
 
 celery_app = Celery("event_worker", broker=settings.redis_url())
 
-_persistence_provider = settings.persistence_provider()
-if _persistence_provider == "azure-sql":
-    # Seleciona o engine/sessão do dialeto certo via PERSISTENCE_PROVIDER (ver
-    # revold_ecommerce.adapters.database e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    from revold_azure_sql.db import make_engine, make_session_factory
-else:
-    from revold_postgres.db import make_engine, make_session_factory
+from revold_azure_sql.db import make_engine, make_session_factory
 
 _engine = make_engine(settings.database_url())
 _session_factory = make_session_factory(_engine)
@@ -58,9 +51,9 @@ async def _dispatch(event_name: str, payload: dict[str, Any]) -> None:
         async with _session_factory() as session:
             ok = await event_handlers.handle_product_updated(
                 payload,
-                product_repository=build_product_repository(session, _persistence_provider),
+                product_repository=build_product_repository(session),
                 llm=llm,
-                index=build_product_index(session, _persistence_provider),
+                index=build_product_index(session),
             )
         if not ok:
             logger.info(

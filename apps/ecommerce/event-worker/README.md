@@ -3,7 +3,7 @@
 Worker Celery que consome os eventos de domínio da loja (composition root).
 
 - **Tipo:** app · **Runtime:** celery-worker · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `ai-assistant`, `catalog`, `ecommerce`, `messaging`, `notification`, `platform`, `postgres`
+- **Depende de:** `ai-assistant`, `catalog`, `ecommerce`, `messaging`, `notification`, `platform`, `azure-sql`
 
 ## O que faz
 

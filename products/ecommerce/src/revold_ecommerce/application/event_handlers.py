@@ -6,7 +6,7 @@ Orquestração entre domínios: cada handler compõe `catalog`/`ai-assistant`
 ou `notification` a partir de um evento primitivo (ADR-0002 — nenhum
 domínio importa outro), do mesmo jeito que os módulos `catalog_indexing` e
 `stock` deste pacote. `event_worker.celery_app` é quem chama estas funções
-com as dependências reais montadas (Postgres, LLMProvider,
+com as dependências reais montadas (Azure SQL, LLMProvider,
 NotificationChannel configurados).
 """
 from __future__ import annotations

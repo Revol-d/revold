@@ -1,34 +1,11 @@
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: revold
-      POSTGRES_PASSWORD: revold_dev_only
-      POSTGRES_DB: revold
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U revold"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   mssql:
-    # Opt-in (profile `azure-sql`): "docker compose --profile azure-sql up", nao o `make dev`
-    # comum -- senao todo mundo baixaria e subiria esse container sempre, mesmo quem nao
-    # mexe com a migracao Postgres -> Azure SQL ainda (ver o plano, docs internos). Durante a
-    # troca, os dois bancos convivem; o default continua sendo o `postgres` acima. Precisa do
-    # ODBC Driver 17/18 for SQL Server instalado na maquina que roda os testes/app fora do
-    # container (nao e empacotado aqui, e componente de sistema operacional). Diferente do
-    # Postgres, essa imagem NAO cria o banco `revold` sozinha -- rode uma vez, depois do
-    # container de pe:
-    #   docker compose exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa \
-    #     -P revold_dev_only_1 -Q "CREATE DATABASE revold"
-    profiles: ["azure-sql"]
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    # Imagem própria (deploy/docker/mssql/): a oficial não tem Full-Text Search
+    # instalado nem cria o banco `revold` sozinha, e precisa do motor 2025 (não
+    # 2022) para o tipo nativo VECTOR -- ver o Dockerfile para os achados reais e
+    # como foram verificados.
+    build:
+      context: deploy/docker/mssql
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
@@ -38,10 +15,14 @@ services:
     volumes:
       - mssql_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q 'SELECT 1' || exit 1"]
+      # Confere o banco `revold`, nao so "SELECT 1" -- o entrypoint aceita conexao
+      # ANTES de terminar de criar o banco (achado real: SELECT 1 passava com o
+      # banco ainda nao existindo, corrida entre o sqlservr aceitar conexao e o
+      # entrypoint rodar o CREATE DATABASE).
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q \"SELECT 1 FROM sys.databases WHERE name = 'revold'\" | grep -q '(1 rows affected)' || exit 1"]
       interval: 10s
       timeout: 10s
-      retries: 10
+      retries: 15
       start_period: 30s
 
   redis:
@@ -86,8 +67,8 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://revold:revold_dev_only@postgres:5432/revold
-      DATABASE_URL_SYNC: postgresql+psycopg2://revold:revold_dev_only@postgres:5432/revold
+      DATABASE_URL: mssql+aioodbc://sa:revold_dev_only_1@mssql:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_URL_SYNC: mssql+pyodbc://sa:revold_dev_only_1@mssql:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/0
       AUTH_PROVIDER: dev
       CHECKOUT_PROVIDER: whatsapp-clicktochat
@@ -109,7 +90,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       - media_data:/app/media
     depends_on:
-      postgres:
+      mssql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -139,7 +120,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://revold:revold_dev_only@postgres:5432/revold
+      DATABASE_URL: mssql+aioodbc://sa:revold_dev_only_1@mssql:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/0
       LLM_PROVIDER: dev
       WEBHOOK_SENDER_PROVIDER: logging
@@ -149,7 +130,7 @@ services:
       - ./products:/app/products
       - ./apps/ecommerce/event-worker:/app/apps/ecommerce/event-worker
     depends_on:
-      postgres:
+      mssql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -182,7 +163,7 @@ services:
 
   prometheus:
     # Faz scrape de /metrics do api-gateway (ADR-0017) — self-hosted, zero
-    # credencial nenhuma, mesma categoria de infra que Postgres/Redis.
+    # credencial nenhuma, mesma categoria de infra que o Azure SQL/Redis.
     image: prom/prometheus:v2.55.1
     restart: unless-stopped
     ports:
@@ -235,7 +216,6 @@ services:
         condition: service_healthy
 
 volumes:
-  postgres_data:
   mssql_data:
   media_data:
   prometheus_data:

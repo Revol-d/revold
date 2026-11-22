@@ -8,9 +8,10 @@ Cliente do Azure SQL Database: engine, fábrica de sessão e a base declarativa 
 ## O que faz
 
 `make_engine(database_url)`, `make_session_factory(engine)`, `get_session` e `Base`, a base
-declarativa de onde os modelos Azure SQL dos domínios migrados herdam (lida por
-`products/ecommerce/migrations_azure_sql/`). Mesma forma de `revold_postgres.db` — ver o
-plano de migração (docs internos) para o porquê de existirem os dois em paralelo durante a troca.
+declarativa de onde os modelos Azure SQL dos domínios herdam (lida por
+`products/ecommerce/migrations_azure_sql/`). Única integração de persistência do repositório
+([ADR-0032](../../../docs/kb/decisoes/0032-migracao-postgres-para-azure-sql.md) — Postgres foi
+removido).
 
 Usa `aioodbc` (driver assíncrono) + ODBC Driver 17/18 for SQL Server instalado na máquina —
 não é instalado pelo `uv sync`, é um componente de sistema operacional. Ver

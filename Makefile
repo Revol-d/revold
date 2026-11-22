@@ -5,8 +5,8 @@
 # - Os GATES do dia a dia (manifesto, fronteiras, lint, testes sem infraestrutura) rodam na
 #   máquina, pelo uv: `uv run dev check`, `uv run dev test`. São eles que os hooks de
 #   pre-commit e o CI chamam. Ver CONTRIBUTING.md, seções 2 e 5.
-# - A PILHA (Postgres, Redis, API, worker, sites, Prometheus, Grafana) roda em container,
-#   pelos alvos abaixo. Assim ninguém depende da versão de Postgres/Node instalada na máquina,
+# - A PILHA (Azure SQL, Redis, API, worker, sites, Prometheus, Grafana) roda em container,
+#   pelos alvos abaixo. Assim ninguém depende da versão de Azure SQL/Node instalada na máquina,
 #   e os testes de integração e E2E falam com serviço de verdade (ADR-0009).
 #
 # Dentro do container do api-gateway o ambiente Python já está no PATH (/opt/venv): os

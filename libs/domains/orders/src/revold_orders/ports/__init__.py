@@ -1,6 +1,6 @@
 """Porta (interface) que `orders` espera que a infraestrutura implemente.
 
-Qualquer adapter (Postgres, um fake em memória para teste) implementa este
+Qualquer adapter (Azure SQL, um fake em memória para teste) implementa este
 Protocol — `orders` nunca importa SQLAlchemy nem nenhum driver de banco.
 """
 from __future__ import annotations

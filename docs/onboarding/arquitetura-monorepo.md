@@ -30,7 +30,7 @@
 ### 1.1 O que existe
 
 Um e-commerce: uma API (FastAPI), dois workers (Celery), uma loja e um painel administrativo
-(Next.js), sobre Postgres e Redis. A regra de negócio está dividida em dez bounded contexts
+(Next.js), sobre Azure SQL e Redis. A regra de negócio está dividida em dez bounded contexts
 (catálogo, carrinho, estoque, pedidos, pagamentos, identidade, notificação, comunicação,
 configuração da loja e o assistente de IA), e nenhum deles importa outro
 ([ADR-0002](../kb/decisoes/0002-separacao-em-cores.md)).
@@ -76,7 +76,7 @@ usa.
                       │   (só pela camada adapters/)                     │
                       ▼                                                  │
               libs/integrations/                                         │
-   postgres  redis  messaging  prometheus  smtp  whatsapp                │
+   azure-sql  redis  messaging  prometheus  smtp  whatsapp               │
    mercado-pago  openai  azure-blob                                      │
                       │                                                  │
                       ▼                                                  │
@@ -110,7 +110,7 @@ product:
 language: python
 lifecycle: pilot
 owners: ["@SamuelSMatos", "@dmourans"]
-depends_on: ["postgres", "azure-blob"]
+depends_on: ["azure-sql", "azure-blob"]
 ```
 
 ### 3.2 Os tipos de unidade (`kind`)
@@ -118,7 +118,7 @@ depends_on: ["postgres", "azure-blob"]
 | Tipo | O que é | Exemplo daqui |
 |---|---|---|
 | `platform` | o que todo app usa | `revold_platform`: parser de ambiente, evento de domínio, porta de métricas |
-| `integration` | cliente de **um** sistema externo, sem regra de negócio | `revold_smtp`, `revold_mercado_pago`, `revold_postgres` |
+| `integration` | cliente de **um** sistema externo, sem regra de negócio | `revold_smtp`, `revold_mercado_pago`, `revold_azure_sql` |
 | `capability` | mecanismo técnico reutilizável, sem estado de negócio | nenhuma ainda (seria: gerar PDF, exportar planilha) |
 | `domain` | um bounded context, com as regras, as portas e os adapters dele | `revold_catalog`, `revold_cart` |
 | `product` | o que é de um produto: o que cruza domínios | `revold_ecommerce` |
@@ -137,7 +137,7 @@ para o assistente" precisa de catálogo e de IA.
 ### 3.3 App e composition root
 
 O app é o único lugar em que tudo se encontra. Ele lê o ambiente (`settings.py`), escolhe os
-adapters (Postgres ou fake, SMTP ou log), monta os casos de uso e os expõe: como rota HTTP, como
+adapters (Azure SQL ou fake, SMTP ou log), monta os casos de uso e os expõe: como rota HTTP, como
 tarefa Celery ou como comando. Não tem regra de negócio.
 
 ### 3.4 Porta (port) e adaptador (adapter)
@@ -261,7 +261,7 @@ Dentro de um domínio, a pergunta seguinte é a camada (seção 5).
 libs/domains/payments/src/revold_payments/
 ├── adapters/           fala com o mundo
 │   ├── gateways/         fake_gateway.py, mercado_pago_gateway.py, factory.py
-│   └── postgres/         models.py, repository.py
+│   └── azure_sql/        models.py, repository.py
 ├── application/        os casos de uso (use_cases.py) e os schemas da API (schemas.py)
 ├── ports/              os contratos: PaymentGateway, ChargeRepository
 └── domain/             a regra pura: Charge, ChargeStatus, Money
@@ -322,7 +322,7 @@ externo) e `observability` (a porta `MetricsPublisher`).
 
 | Unidade | Fala com | Quem usa |
 |---|---|---|
-| `postgres` | o banco (engine, sessão, `Base`) | os adapters `postgres/` de sete domínios |
+| `azure-sql` | o banco (engine, sessão, `Base`) | os adapters `azure_sql/` de sete domínios |
 | `redis` | o Redis (o cliente) | os apps, que entregam o cliente aos adapters `redis/` |
 | `messaging` | a fila (Celery) e endpoints de parceiro (webhook HTTP) | os apps |
 | `prometheus` | o Prometheus (contadores e histogramas) | o `api-gateway` |
@@ -336,9 +336,9 @@ externo) e `observability` (a porta `MetricsPublisher`).
 
 Os dez contextos. Todos têm a mesma forma (seção 5). Diferem nos adapters:
 
-- só Postgres: `inventory`, `orders`, `store-settings`;
+- só Azure SQL: `inventory`, `orders`, `store-settings`;
 - só Redis: `cart`;
-- Postgres e outro provedor: `catalog` (mídia), `payments` (gateway), `ai-assistant` (LLM),
+- Azure SQL e outro provedor: `catalog` (mídia), `payments` (gateway), `ai-assistant` (LLM),
   `identity` (Redis e o provedor de login);
 - só provedor externo: `notification` (log, SMTP, WhatsApp), `communication` (WhatsApp).
 
@@ -376,7 +376,7 @@ sequenceDiagram
     participant Admin as admin-dashboard
     participant API as api-gateway (routers/catalog.py)
     participant Cat as revold_catalog (application)
-    participant PG as adapters/postgres
+    participant PG as adapters/azure_sql
     participant Pub as CeleryEventPublisher (messaging)
     participant W as event-worker (celery_app.py)
     participant Prod as revold_ecommerce (event_handlers)
@@ -466,11 +466,11 @@ contexto novo muda a arquitetura.
 
 ### 10.6 Caso E: uma tabela nova
 
-O modelo SQLAlchemy em `adapters/postgres/models.py` do domínio dono, herdando de
-`revold_postgres.db.Base`. Se o domínio ainda não tinha tabela, ele entra na lista de
+O modelo SQLAlchemy em `adapters/azure_sql/models.py` do domínio dono, herdando de
+`revold_azure_sql.db.Base`. Se o domínio ainda não tinha tabela, ele entra na lista de
 `products/ecommerce/src/revold_ecommerce/adapters/database.py`. A migração sai do
 `alembic revision --autogenerate` (CONTRIBUTING, seção 9.3), revisada linha a linha, com `upgrade`
-e `downgrade`, em `products/ecommerce/migrations/versions/`, no mesmo PR. O teste
+e `downgrade`, em `products/ecommerce/migrations_azure_sql/versions/`, no mesmo PR. O teste
 `test_migrations_match_models.py` reprova o PR em que modelo e migração não batem.
 
 ### 10.7 Caso F: um app novo, ou um produto novo

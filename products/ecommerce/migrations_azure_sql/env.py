@@ -7,19 +7,17 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Trilha de migração do Azure SQL (ver o plano de migração Postgres -> Azure SQL, docs
-# internos). Espelha products/ecommerce/migrations/env.py (a trilha do Postgres, que
-# continua existindo e funcionando sem mudança nenhuma) -- só troca a metadata (via
-# get_metadata("azure-sql"), que só registra os domínios já migrados) e a variável de
-# ambiente da URL síncrona, para as duas trilhas poderem coexistir sem uma pisar na outra.
-from revold_ecommerce.adapters.database import get_metadata
+# internos). Postgres foi removido na Fase 7 (corte concluído) -- esta é a única
+# trilha de migração que resta.
+from revold_ecommerce.adapters.database import compare_type, metadata
 
 config = context.config
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
-target_metadata = get_metadata("azure-sql")
+target_metadata = metadata
 
-db_url = os.environ.get("DATABASE_URL_SYNC_AZURE_SQL")
+db_url = os.environ.get("DATABASE_URL_SYNC")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
@@ -31,6 +29,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=compare_type,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -43,7 +42,9 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection, target_metadata=target_metadata, compare_type=compare_type
+        )
         with context.begin_transaction():
             context.run_migrations()
 

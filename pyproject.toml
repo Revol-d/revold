@@ -24,7 +24,6 @@ members = [
 [tool.uv.sources]
 revold-tooling = { workspace = true }
 revold-platform = { workspace = true }
-revold-postgres = { workspace = true }
 revold-azure-sql = { workspace = true }
 revold-redis = { workspace = true }
 revold-messaging = { workspace = true }

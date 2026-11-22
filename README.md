@@ -29,7 +29,7 @@ Para ver o sistema funcionando (precisa de Docker):
 
 ```powershell
 Copy-Item .env.example .env
-make dev                                  # Postgres, Redis, API, worker, sites, Prometheus, Grafana
+make dev                                  # Azure SQL, Redis, API, worker, sites, Prometheus, Grafana
 make migrate
 make seed                                 # catálogo de demonstração
 ```
@@ -45,7 +45,7 @@ apps/ecommerce/        o que sobe sozinho: api-gateway, event-worker, catalog-in
 products/ecommerce/    o que cruza dois ou mais domínios; os contratos da API; as migrações
 libs/
   platform/            configuração, eventos de domínio, observabilidade
-  integrations/        clientes de sistema externo: postgres, redis, messaging, prometheus,
+  integrations/        clientes de sistema externo: azure-sql, redis, messaging, prometheus,
                        smtp, whatsapp, mercado-pago, openai, azure-blob
   domains/             um bounded context cada: catalog, cart, inventory, orders, payments,
                        identity, notification, communication, store-settings, ai-assistant
@@ -66,7 +66,7 @@ que ela faz e o que ela **não** faz.
 | Parte | Tecnologia |
 |---|---|
 | API e workers | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, Celery |
-| Dados | PostgreSQL 16 com pgvector, Redis 7 |
+| Dados | Azure SQL Database (VECTOR/DiskANN nativo), Redis 7 |
 | Assistente de IA | LangGraph; Azure OpenAI ou DeepSeek, com um provedor de desenvolvimento sem credencial |
 | Sites | Next.js 14, React 18, TypeScript, Tailwind CSS |
 | Observabilidade | Prometheus e Grafana |

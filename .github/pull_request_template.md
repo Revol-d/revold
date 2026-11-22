@@ -53,7 +53,7 @@ Closes #
 
 ## Testes executados
 - [ ] unitários
-- [ ] integração (Postgres/Redis de verdade)
+- [ ] integração (Azure SQL/Redis de verdade)
 - [ ] contrato (`-m contract`), se mudou rota ou contrato
 - [ ] eval do assistente (`-m eval`)
 - [ ] E2E (`make test-e2e`)

@@ -1,7 +1,6 @@
 """Modelo SQLAlchemy de API key no Azure SQL. Vive só no adapter -- revold_identity
 não o conhece.
 
-Espelha adapters/postgres/api_key_models.py: mesma tabela, com uma diferença real:
 `name` usa `Unicode` (`NVARCHAR`), não `String` (`VARCHAR`) -- é um rótulo escolhido
 por quem emite a chave (`issue(name=...)`), texto livre, sujeito ao achado de revisão
 do store-settings (`VARCHAR` com a colação padrão do servidor troca caractere fora do

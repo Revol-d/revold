@@ -1,11 +1,6 @@
 """Modelo SQLAlchemy da configuração da loja no Azure SQL. Vive só no adapter —
 revold_store_settings não o conhece (ADR-0002, ADR-0019).
 
-Espelha libs/domains/store-settings/src/revold_store_settings/adapters/postgres/models.py:
-mesma tabela — só troca o `Base` de origem (revold_azure_sql em vez de revold_postgres),
-porque as duas não podem registrar a mesma tabela no mesmo `Base.metadata` no mesmo
-processo (ver `products/ecommerce/src/revold_ecommerce/adapters/database.py`).
-
 `String` NÃO é portável para texto livre aqui: no dialeto mssql vira `VARCHAR`, sujeito à
 colação do servidor (`SQL_Latin1_General_CP1_CI_AS` por padrão) -- caracteres fora do
 CP1252 (emoji, a maior parte do CJK, etc.) são trocados por `?` ao gravar, SEM erro

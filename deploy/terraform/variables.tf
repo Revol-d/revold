@@ -14,8 +14,8 @@ variable "location" {
   default = "brazilsouth"
 }
 
-variable "postgres_admin_password" {
-  type      = string
-  sensitive = true
-  description = "Senha do usuário administrador do Postgres. Passar via TF_VAR_postgres_admin_password, nunca commitar."
+variable "azure_sql_admin_password" {
+  type        = string
+  sensitive   = true
+  description = "Senha do usuário administrador do Azure SQL Database. Passar via TF_VAR_azure_sql_admin_password, nunca commitar."
 }

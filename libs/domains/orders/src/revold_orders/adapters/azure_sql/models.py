@@ -1,8 +1,7 @@
 """Modelos SQLAlchemy de pedidos no Azure SQL. Vivem só no adapter -- revold_orders
 não os conhece.
 
-Espelha adapters/postgres/models.py, com uma diferença real: `product_name`/
-`variant_label` usam `Unicode` (`NVARCHAR`), não `String` (`VARCHAR`) -- são texto
+`product_name`/`variant_label` usam `Unicode` (`NVARCHAR`), não `String` (`VARCHAR`) -- são texto
 livre copiado do catálogo no momento do pedido (nome do produto, "Azul / M" etc.),
 sujeito ao achado de revisão do store-settings (`VARCHAR` com a colação padrão do
 servidor troca caractere fora do CP1252 por `?` ao gravar, sem erro; ver

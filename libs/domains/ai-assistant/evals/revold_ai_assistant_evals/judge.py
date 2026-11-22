@@ -6,7 +6,7 @@ provider configurado é um modelo de verdade (Azure OpenAI); com o provider
 `dev` ou o `FakeLLMProvider` de teste, a resposta não é um JSON de nota de
 verdade — por isso `test_llm_judge.py` só roda com `LLM_PROVIDER=azure-openai`
 configurado (ver `real_llm_provider_configured()`), pulando (skip) sozinho
-caso contrário, mesma convenção dos testes de integração contra Postgres
+caso contrário, mesma convenção dos testes de integração contra Azure SQL
 real."""
 from __future__ import annotations
 

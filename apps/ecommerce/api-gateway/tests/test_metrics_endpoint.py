@@ -20,8 +20,8 @@ async def client():
 
 async def test_metrics_endpoint_expoe_contadores_http(client: AsyncClient) -> None:
     # Gera pelo menos uma requisição contável antes de checar. Usa o mesmo endpoint do
-    # último teste deste arquivo, que não toca Postgres nem Redis: com /api/catalog/products
-    # este teste só passava com um Postgres migrado de pé (o do CI) e falhava em qualquer
+    # último teste deste arquivo, que não toca Azure SQL nem Redis: com /api/catalog/products
+    # este teste só passava com um Azure SQL migrado de pé (o do CI) e falhava em qualquer
     # máquina sem ele, em vez de pular como os testes marcados `integration`.
     await client.post(
         "/api/auth/login/start", json={"redirect_uri": "http://localhost:3000/callback"}
@@ -65,7 +65,7 @@ async def test_metrics_scrape_nao_conta_a_si_mesmo(client: AsyncClient) -> None:
 async def test_requisicao_real_incrementa_o_contador_com_method_e_status(
     client: AsyncClient,
 ) -> None:
-    # /api/auth/login/start não toca Postgres nem Redis (DevIdentityProvider
+    # /api/auth/login/start não toca Azure SQL nem Redis (DevIdentityProvider
     # é síncrono e sem estado) — evita o problema conhecido de reusar uma
     # engine assíncrona criada uma vez entre event loops diferentes por
     # teste, que aconteceria com qualquer endpoint que use get_db_session

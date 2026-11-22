@@ -1,7 +1,5 @@
 """Modelo SQLAlchemy do estoque no Azure SQL. Vive só no adapter -- revold_inventory
 não o conhece.
-
-Espelha adapters/postgres/models.py: mesma tabela, mesmos tipos portáveis (String/Integer).
 """
 from __future__ import annotations
 

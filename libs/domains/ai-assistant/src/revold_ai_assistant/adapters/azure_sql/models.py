@@ -1,8 +1,7 @@
 """Modelo SQLAlchemy do índice vetorial do catálogo (RAG, ADR-0011) no Azure SQL.
 
 Vive só no adapter -- revold_ai_assistant não conhece SQLAlchemy nem o tipo
-VECTOR, só a porta ProductIndex. Espelha adapters/postgres/models.py, trocando
-pgvector.sqlalchemy.Vector pelo tipo customizado em
+VECTOR, só a porta ProductIndex. Usa o tipo customizado em
 adapters/azure_sql/vector_type.py (SQLAlchemy ainda não tem suporte nativo ao
 VECTOR do Azure SQL).
 

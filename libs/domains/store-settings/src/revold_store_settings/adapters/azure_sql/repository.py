@@ -1,6 +1,5 @@
 """Implementação Azure SQL da porta revold_store_settings.ports.StoreSettingsRepository
-(ADR-0019). Espelha adapters/postgres/repository.py -- mesma lógica, só troca de onde o
-modelo vem."""
+(ADR-0019)."""
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession

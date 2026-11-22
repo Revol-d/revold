@@ -1,5 +1,5 @@
 """Testa o roteamento de event_worker.celery_app._dispatch (qual handler
-chama pra cada event_name) sem precisar de Celery nem Redis nem Postgres
+chama pra cada event_name) sem precisar de Celery nem Redis nem Azure SQL
 de verdade — monkeypatcha revold_ecommerce.application.event_handlers.handle_* e chama
 _dispatch diretamente. A entrega de verdade via Celery+Redis é
 test_integration_worker.py (marker integration); a lógica de negócio de

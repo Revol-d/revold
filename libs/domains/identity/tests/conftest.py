@@ -11,7 +11,7 @@ from revold_identity.domain import ApiKeyNotFound, ApiKeyPrincipal, Authenticate
 class FakeApiKeyAuth:
     """Adapter fake em memória, mesma forma da porta ApiKeyAuth, só para
     teste — guarda a chave em texto puro só para o teste poder resolvê-la
-    de volta (um adapter real nunca faria isso, ver PostgresApiKeyAuth)."""
+    de volta (um adapter real nunca faria isso, ver AzureSqlApiKeyAuth)."""
 
     def __init__(self) -> None:
         self._by_raw_key: dict[str, ApiKeyPrincipal] = {}

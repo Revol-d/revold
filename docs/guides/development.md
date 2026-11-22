@@ -20,7 +20,7 @@ em container. Os alvos do [Makefile](../../Makefile) continuam fazendo isso, par
 ## Primeiros passos com a pilha
 
 1. `Copy-Item .env.example .env`
-2. `make dev`: monta as imagens (na primeira vez) e sobe Postgres, Redis, o api-gateway (com
+2. `make dev`: monta as imagens (na primeira vez) e sobe Azure SQL, Redis, o api-gateway (com
    reload), o `worker` (o event-worker, [ADR-0013](../kb/decisoes/0013-core-events-e-barramento-de-eventos.md)),
    Prometheus, Grafana, a loja e o painel.
 3. `make migrate` (em outro terminal, com os serviços já de pé): aplica as migrações Alembic dentro
@@ -64,9 +64,9 @@ menos a unitária, que é o padrão sem marcador:
 - **Fábricas de dados** (`revold_testing`, em `tests/support/`): Factory Boy e Faker (`pt_BR`) para
   gerar dado realista (acento, preço quebrado) em vez de só fixture escrita à mão. Um módulo por
   domínio. São usadas dentro dos testes; não são uma camada à parte.
-- **`integration`**: contra Postgres com pgvector, Redis ou um servidor de verdade em memória. Pula
-  sozinho sem a infraestrutura alcançável. Roda no CI (com o Postgres do service) e na máquina com
-  o banco em container (CONTRIBUTING, seção 10).
+- **`integration`**: contra Azure SQL, Redis ou um servidor de verdade em memória. Pula
+  sozinho sem a infraestrutura alcançável. Roda no CI (com o container de Azure SQL) e na máquina
+  com o banco em container (CONTRIBUTING, seção 10).
 - **Sandbox de serviço externo**: todo adapter real sem credencial de produção é validado contra
   algo que fala o protocolo de verdade. `respx` simula a API HTTP do Azure OpenAI, do DeepSeek, do
   Mercado Pago e da Meta; o **Azurite** (emulador oficial) valida o `AzureBlobStorage`; o `aiosmtpd`
@@ -95,8 +95,8 @@ manual. As métricas vêm do endpoint `/metrics` do api-gateway.
 ## Reproduzir o CI na máquina (ADR-0021)
 
 `uv run dev check` e `uv run dev test` na máquina já rodam os mesmos comandos do CI, no mesmo
-ambiente travado pelo `uv.lock`. Para reproduzir o **runner** (sem `.env`, com o service do
-Postgres):
+ambiente travado pelo `uv.lock`. Para reproduzir o **runner** (sem `.env`, com o container do
+Azure SQL):
 
 1. Instale o [`act`](https://github.com/nektos/act).
 2. `make ci-local`: roda o `ci.yml` em containers que emulam o runner do GitHub Actions. O `.actrc`

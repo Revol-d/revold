@@ -54,7 +54,7 @@ def override_dependencies(fake_event_publisher: _FakeEventPublisher):
     fake_repo = _FakeInventoryRepository()
     app.dependency_overrides[get_inventory_repository] = lambda: fake_repo
     app.dependency_overrides[get_event_publisher] = lambda: fake_event_publisher
-    # get_low_stock_threshold agora lê `store-settings` via Postgres
+    # get_low_stock_threshold agora lê `store-settings` via Azure SQL
     # (ADR-0019) — sobrescrito aqui com o mesmo valor padrão de antes (5)
     # para não fazer este teste de unidade abrir uma sessão de banco de
     # verdade (mesmo cuidado de test_metrics_endpoint.py: um novo event

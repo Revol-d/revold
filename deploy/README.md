@@ -5,9 +5,10 @@ Tudo o que leva o código para fora da máquina de quem desenvolve. Não é unid
 
 | Pasta | O que tem | Estado |
 |---|---|---|
-| [terraform/](terraform/README.md) | a infraestrutura do Azure: rede, Key Vault, Postgres, Container Apps, Azure OpenAI ([ADR-0004](../docs/kb/decisoes/0004-plataforma-de-execucao-azure.md)) | escrito, **nunca aplicado nem validado** |
+| [terraform/](terraform/README.md) | a infraestrutura do Azure: rede, Key Vault, Azure SQL, Container Apps, Azure OpenAI ([ADR-0004](../docs/kb/decisoes/0004-plataforma-de-execucao-azure.md)) | escrito, **nunca aplicado** (o módulo `azure-sql` passa em `terraform validate`; `azure-openai` ainda não) |
 | `observability/prometheus/` | a configuração de scrape do Prometheus | usado pelo `docker-compose.yml` |
 | `observability/grafana/provisioning/` | a fonte de dados e o painel "Revold — Visão Geral", como código ([ADR-0017](../docs/kb/decisoes/0017-observabilidade-metricas-prometheus.md)) | usado pelo `docker-compose.yml` |
+| `docker/mssql/` | a imagem do SQL Server com Full-Text Search instalado e o entrypoint que cria o banco `revold` sozinho ([ADR-0032](../docs/kb/decisoes/0032-migracao-postgres-para-azure-sql.md)) | usado pelo `docker-compose.yml` e pelo CI |
 
 O `Dockerfile` de cada app **não** mora aqui: mora na pasta do app
 (`apps/ecommerce/<app>/Dockerfile`), porque é parte do app e entra no fecho dele.

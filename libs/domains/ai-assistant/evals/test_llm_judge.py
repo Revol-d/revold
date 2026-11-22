@@ -4,7 +4,7 @@ lados (gerando a resposta E julgando): com `LLM_PROVIDER=dev`, a resposta é
 sempre o mesmo texto de regra fixa, então "avaliar a qualidade" dela não
 mediria nada real. Por isso pula (skip) inteiro sem `LLM_PROVIDER=azure-openai`
 e a credencial de verdade configurada — mesma convenção dos testes de
-integração contra Postgres real (skip gracioso, nunca falha o CI por falta
+integração contra Azure SQL real (skip gracioso, nunca falha o CI por falta
 de credencial).
 
 Rodar de verdade (com as credenciais reais no ambiente/.env, ver ADR-0011):

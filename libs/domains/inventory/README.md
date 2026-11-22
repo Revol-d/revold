@@ -3,11 +3,11 @@
 Estoque por SKU: entrada, reserva, liberação e baixa.
 
 - **Tipo:** domain · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `postgres`
+- **Depende de:** `azure-sql`
 
 ## O que faz
 
-A entidade `StockLevel` e os casos de uso de receber, reservar, liberar e dar baixa em estoque, a porta `InventoryRepository` e o adapter `adapters/postgres/`.
+A entidade `StockLevel` e os casos de uso de receber, reservar, liberar e dar baixa em estoque, a porta `InventoryRepository` e o adapter `adapters/azure_sql/`.
 
 ## Camadas
 

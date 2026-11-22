@@ -3,7 +3,7 @@
 Worker Celery que reindexa o catálogo inteiro para o assistente (composition root).
 
 - **Tipo:** app · **Runtime:** celery-worker · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `ai-assistant`, `catalog`, `ecommerce`, `platform`, `postgres`
+- **Depende de:** `ai-assistant`, `catalog`, `ecommerce`, `platform`, `azure-sql`
 
 ## O que faz
 

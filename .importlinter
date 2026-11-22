@@ -25,7 +25,6 @@ root_packages =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -80,7 +79,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -135,7 +133,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -217,7 +214,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_store_settings
@@ -324,7 +320,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -353,7 +348,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -382,7 +376,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -410,7 +403,6 @@ forbidden_modules =
     revold_openai
     revold_orders
     revold_payments
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -439,7 +431,6 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -448,35 +439,6 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:16]
-name = postgres so importa o que declara em depends_on
-type = forbidden
-source_modules =
-    revold_postgres
-forbidden_modules =
-    revold_ai_assistant
-    revold_azure_blob
-    revold_azure_sql
-    revold_cart
-    revold_catalog
-    revold_communication
-    revold_ecommerce
-    revold_identity
-    revold_inventory
-    revold_mercado_pago
-    revold_messaging
-    revold_notification
-    revold_openai
-    revold_orders
-    revold_payments
-    revold_platform
-    revold_prometheus
-    revold_redis
-    revold_smtp
-    revold_store_settings
-    revold_whatsapp
-allow_indirect_imports = True
-
-[importlinter:contract:17]
 name = prometheus so importa o que declara em depends_on
 type = forbidden
 source_modules =
@@ -498,14 +460,13 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_redis
     revold_smtp
     revold_store_settings
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:18]
+[importlinter:contract:17]
 name = redis so importa o que declara em depends_on
 type = forbidden
 source_modules =
@@ -527,14 +488,13 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_smtp
     revold_store_settings
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:19]
+[importlinter:contract:18]
 name = smtp so importa o que declara em depends_on
 type = forbidden
 source_modules =
@@ -556,14 +516,13 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_store_settings
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:20]
+[importlinter:contract:19]
 name = whatsapp so importa o que declara em depends_on
 type = forbidden
 source_modules =
@@ -585,14 +544,13 @@ forbidden_modules =
     revold_orders
     revold_payments
     revold_platform
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_store_settings
 allow_indirect_imports = True
 
-[importlinter:contract:21]
+[importlinter:contract:20]
 name = platform so importa o que declara em depends_on
 type = forbidden
 source_modules =
@@ -613,7 +571,6 @@ forbidden_modules =
     revold_openai
     revold_orders
     revold_payments
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
@@ -621,7 +578,7 @@ forbidden_modules =
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:22]
+[importlinter:contract:21]
 name = ecommerce so importa o que declara em depends_on
 type = forbidden
 source_modules =
@@ -639,7 +596,7 @@ forbidden_modules =
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:23]
+[importlinter:contract:22]
 name = ai-assistant: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -650,14 +607,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:24]
+[importlinter:contract:23]
 name = ai-assistant: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -670,14 +626,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:25]
+[importlinter:contract:24]
 name = ai-assistant: camadas
 type = layers
 containers =
@@ -688,7 +643,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:26]
+[importlinter:contract:25]
 name = cart: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -699,14 +654,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:27]
+[importlinter:contract:26]
 name = cart: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -719,14 +673,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:28]
+[importlinter:contract:27]
 name = cart: camadas
 type = layers
 containers =
@@ -737,7 +690,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:29]
+[importlinter:contract:28]
 name = catalog: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -748,14 +701,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:30]
+[importlinter:contract:29]
 name = catalog: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -768,14 +720,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:31]
+[importlinter:contract:30]
 name = catalog: camadas
 type = layers
 containers =
@@ -786,7 +737,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:32]
+[importlinter:contract:31]
 name = communication: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -797,14 +748,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:33]
+[importlinter:contract:32]
 name = communication: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -817,14 +767,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:34]
+[importlinter:contract:33]
 name = communication: camadas
 type = layers
 containers =
@@ -835,7 +784,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:35]
+[importlinter:contract:34]
 name = identity: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -846,14 +795,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:36]
+[importlinter:contract:35]
 name = identity: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -866,14 +814,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:37]
+[importlinter:contract:36]
 name = identity: camadas
 type = layers
 containers =
@@ -884,7 +831,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:38]
+[importlinter:contract:37]
 name = inventory: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -895,14 +842,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:39]
+[importlinter:contract:38]
 name = inventory: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -915,14 +861,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:40]
+[importlinter:contract:39]
 name = inventory: camadas
 type = layers
 containers =
@@ -933,7 +878,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:41]
+[importlinter:contract:40]
 name = notification: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -944,14 +889,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:42]
+[importlinter:contract:41]
 name = notification: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -964,14 +908,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:43]
+[importlinter:contract:42]
 name = notification: camadas
 type = layers
 containers =
@@ -982,7 +925,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:44]
+[importlinter:contract:43]
 name = orders: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -993,14 +936,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:45]
+[importlinter:contract:44]
 name = orders: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -1013,14 +955,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:46]
+[importlinter:contract:45]
 name = orders: camadas
 type = layers
 containers =
@@ -1031,7 +972,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:47]
+[importlinter:contract:46]
 name = payments: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -1042,14 +983,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:48]
+[importlinter:contract:47]
 name = payments: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -1062,14 +1002,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:49]
+[importlinter:contract:48]
 name = payments: camadas
 type = layers
 containers =
@@ -1080,7 +1019,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:50]
+[importlinter:contract:49]
 name = store-settings: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -1091,14 +1030,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:51]
+[importlinter:contract:50]
 name = store-settings: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -1111,14 +1049,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:52]
+[importlinter:contract:51]
 name = store-settings: camadas
 type = layers
 containers =
@@ -1129,7 +1066,7 @@ layers =
     ports
     domain
 
-[importlinter:contract:53]
+[importlinter:contract:52]
 name = ecommerce: dominio nao importa integracao
 type = forbidden
 source_modules =
@@ -1140,14 +1077,13 @@ forbidden_modules =
     revold_mercado_pago
     revold_messaging
     revold_openai
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp
 allow_indirect_imports = True
 
-[importlinter:contract:54]
+[importlinter:contract:53]
 name = ecommerce: integracao com I/O so entra pela camada adapters
 type = forbidden
 source_modules =
@@ -1160,14 +1096,13 @@ forbidden_modules =
     revold_messaging
     revold_openai.chat
     revold_openai.embeddings
-    revold_postgres
     revold_prometheus
     revold_redis
     revold_smtp
     revold_whatsapp.cloud_api
 allow_indirect_imports = True
 
-[importlinter:contract:55]
+[importlinter:contract:54]
 name = ecommerce: camadas
 type = layers
 containers =

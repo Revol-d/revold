@@ -3,7 +3,7 @@
 API HTTP da loja (composition root): rotas FastAPI sobre os domínios e o produto.
 
 - **Tipo:** app · **Runtime:** fastapi-api · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `ai-assistant`, `cart`, `catalog`, `communication`, `ecommerce`, `identity`, `inventory`, `messaging`, `notification`, `orders`, `payments`, `platform`, `postgres`, `prometheus`, `redis`, `store-settings`
+- **Depende de:** `ai-assistant`, `cart`, `catalog`, `communication`, `ecommerce`, `identity`, `inventory`, `messaging`, `notification`, `orders`, `payments`, `platform`, `azure-sql`, `prometheus`, `redis`, `store-settings`
 
 ## O que faz
 

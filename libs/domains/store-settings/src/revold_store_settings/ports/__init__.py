@@ -1,5 +1,5 @@
 """Porta (interface) que `store-settings` espera que a infraestrutura
-implemente. Qualquer adapter (Postgres, um fake em memória para teste)
+implemente. Qualquer adapter (Azure SQL, um fake em memória para teste)
 implementa este Protocol — `store-settings` nunca importa SQLAlchemy.
 """
 from __future__ import annotations

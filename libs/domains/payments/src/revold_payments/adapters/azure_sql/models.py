@@ -1,7 +1,5 @@
 """Modelo SQLAlchemy de cobrança de pagamento no Azure SQL. Vive só no adapter --
 revold_payments não o conhece.
-
-Espelha adapters/postgres/models.py: mesma tabela, mesmos tipos portáveis.
 """
 from __future__ import annotations
 

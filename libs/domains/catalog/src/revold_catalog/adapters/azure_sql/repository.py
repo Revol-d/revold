@@ -1,9 +1,8 @@
 """Implementação Azure SQL da porta revold_catalog.ports.ProductRepository.
 
-Espelha adapters/postgres/repository.py no formato geral, mas a busca full-text é
-genuinamente diferente -- não é só trocar sintaxe, o SQL Server exige mais peças que
-o `plainto_tsquery`/`ts_rank` do Postgres fazem escondido. Tudo abaixo foi testado
-contra um Azure SQL Database real antes de escrever (não assumido):
+A busca full-text não é só trocar sintaxe de outro banco: o SQL Server exige mais peças
+explícitas que o `plainto_tsquery`/`ts_rank` do Postgres fariam escondido. Tudo abaixo foi
+testado contra um Azure SQL Database real antes de escrever (não assumido):
 
 1. `CONTAINSTABLE` filtra E ranqueia por relevância, mas o SQLAlchemy não tem
    suporte nativo a tabela-valued-function do SQL Server -- usa-se

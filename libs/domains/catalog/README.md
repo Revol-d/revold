@@ -3,11 +3,11 @@
 Catálogo de produtos: categorias, produtos, variantes e imagens.
 
 - **Tipo:** domain · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `postgres`, `azure-blob`
+- **Depende de:** `azure-sql`, `azure-blob`
 
 ## O que faz
 
-As entidades `Product`, `ProductVariant` e `Category`, os casos de uso de leitura e de escrita do catálogo, as portas `ProductRepository` e `MediaStorage`, e os adapters: `adapters/postgres/` (com busca full-text, ADR-0014) e `adapters/media/` (disco local, Azure Blob e a factory `build_media_storage`, ADR-0015). `seed.py` declara o catálogo de demonstração (ADR-0022).
+As entidades `Product`, `ProductVariant` e `Category`, os casos de uso de leitura e de escrita do catálogo, as portas `ProductRepository` e `MediaStorage`, e os adapters: `adapters/azure_sql/` (com busca full-text, ADR-0014) e `adapters/media/` (disco local, Azure Blob e a factory `build_media_storage`, ADR-0015). `seed.py` declara o catálogo de demonstração (ADR-0022).
 
 ## Camadas
 

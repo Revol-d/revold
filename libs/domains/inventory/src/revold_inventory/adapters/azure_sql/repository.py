@@ -1,5 +1,4 @@
-"""Implementação Azure SQL da porta revold_inventory.ports.InventoryRepository.
-Espelha adapters/postgres/repository.py -- mesma lógica, só troca de onde o modelo vem."""
+"""Implementação Azure SQL da porta revold_inventory.ports.InventoryRepository."""
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -1,6 +1,6 @@
 """Teste de contrato leve do router de catalog: sobe o app FastAPI de verdade,
 mas troca o repositório real pelo fake em memória via override de dependência
-do FastAPI — não precisa de Postgres para validar o contrato HTTP.
+do FastAPI — não precisa de Azure SQL para validar o contrato HTTP.
 """
 from __future__ import annotations
 

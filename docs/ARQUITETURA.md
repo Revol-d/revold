@@ -18,7 +18,7 @@ revold/
 ├── products/<produto>/        o que é de UM produto: o que cruza dois ou mais domínios
 ├── libs/
 │   ├── platform/              infraestrutura de todo app: configuração, eventos, observabilidade
-│   ├── integrations/          cliente de UM sistema externo: postgres, smtp, mercado-pago
+│   ├── integrations/          cliente de UM sistema externo: azure-sql, smtp, mercado-pago
 │   ├── capabilities/          mecanismo técnico sem dono de negócio (ainda sem unidade)
 │   ├── domains/               um bounded context: catalog, cart, orders, payments
 │   └── web/                   pacotes TypeScript: os componentes de interface
@@ -100,7 +100,7 @@ O que precisa de **dois ou mais domínios** não é de nenhum deles: é do **pro
 `domain` e `product` têm camadas, de cima para baixo:
 
 ```text
-adapters/      fala com o mundo: Postgres, Redis, disco, HTTP, e-mail
+adapters/      fala com o mundo: Azure SQL, Redis, disco, HTTP, e-mail
 application/   os casos de uso: orquestram portas, não sabem de onde o dado vem
 ports/         os contratos (Protocol) que a application usa
 domain/        a regra pura: entidades, objetos de valor, erros
@@ -112,7 +112,7 @@ domain/        a regra pura: entidades, objetos de valor, erros
 - A porta é de quem a usa: o domínio declara a porta, o adapter a implementa. A plataforma declara
   as portas que são de todo app (`EventPublisher`, `MetricsPublisher`), e as integrações
   `messaging` e `prometheus` as implementam.
-- Os adapters ficam em subpastas por tecnologia: `adapters/postgres/`, `adapters/redis/`,
+- Os adapters ficam em subpastas por tecnologia: `adapters/azure_sql/`, `adapters/redis/`,
   `adapters/llm/`. O adapter de desenvolvimento (fake, log, disco local) mora na mesma camada.
 - Cada domínio que escolhe adapter por configuração tem uma **factory** em `adapters/`
   (`build_llm_provider`, `build_payment_gateway`), que recebe um objeto de configuração tipado.
@@ -129,10 +129,10 @@ event_handlers     o que fazer com cada evento consumido pelo event-worker
 seed               o seed semântico de catálogo, estoque e configuração
 ```
 
-Fora do pacote, na pasta do produto: `contracts/api/` (os contratos OpenAPI) e `migrations/` (o
-histórico Alembic do banco da loja). O banco é um só: cada domínio declara as tabelas dele em
-`adapters/postgres/`, e `revold_ecommerce.adapters.database` junta todas no `metadata` que o
-Alembic compara com o banco.
+Fora do pacote, na pasta do produto: `contracts/api/` (os contratos OpenAPI) e
+`migrations_azure_sql/` (o histórico Alembic do banco da loja). O banco é um só: cada domínio
+declara as tabelas dele em `adapters/azure_sql/`, e `revold_ecommerce.adapters.database` junta
+todas no `metadata` que o Alembic compara com o banco.
 
 ## 6. O app (composition root)
 
@@ -160,7 +160,7 @@ com o `api-gateway` por HTTP.
 | app importa só o que declara, e nunca outro app | `tests/architecture/test_app_imports.py` | pytest |
 | todo job do CI está ligado ao `CI OK` | `tests/architecture/test_ci_workflow.py` | pytest |
 | rota da API e contrato OpenAPI batem (método e caminho) | `api-gateway/tests/test_contract_routes.py` | pytest |
-| as migrações constroem exatamente o que os modelos descrevem | `products/ecommerce/tests/test_migrations_match_models.py` | pytest com Postgres (CI) |
+| as migrações constroem exatamente o que os modelos descrevem | `products/ecommerce/tests/test_migrations_match_models.py` | pytest com Azure SQL (CI) |
 | a imagem do app leva tudo o que ele importa | job "Imagem" | CI |
 | o cliente consegue comprar (carrinho, checkout, busca) | job "E2E (Playwright)" | CI |
 

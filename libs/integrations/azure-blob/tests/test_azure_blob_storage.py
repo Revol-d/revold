@@ -2,8 +2,8 @@
 oficial da Microsoft para Azure Storage — fala o protocolo Blob real, sem
 nenhuma credencial Azure de verdade). Mesma convenção dos outros testes de
 integração deste monorepo: pula sozinho se o binário `azurite` não estiver
-disponível (ver libs/domains/<dominio>/tests/test_catalog_repository_integration.py
-para o equivalente com Postgres real).
+disponível (ver libs/domains/<dominio>/tests/test_catalog_repository_integration_azure_sql.py
+para o equivalente com Azure SQL real).
 
 A connection string usada é a "well-known" do próprio Azurite — pública,
 documentada pela Microsoft, não é um segredo (https://learn.microsoft.com/

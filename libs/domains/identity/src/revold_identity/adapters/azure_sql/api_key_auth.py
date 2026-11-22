@@ -1,6 +1,4 @@
-"""Implementação Azure SQL da porta revold_identity.ports.ApiKeyAuth (ADR-0016).
-Espelha adapters/postgres/api_key_auth.py -- mesma lógica, só troca de onde o modelo vem.
-"""
+"""Implementação Azure SQL da porta revold_identity.ports.ApiKeyAuth (ADR-0016)."""
 from __future__ import annotations
 
 import hashlib

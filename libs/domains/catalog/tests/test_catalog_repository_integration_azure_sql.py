@@ -1,14 +1,13 @@
 """Testes de integração do AzureSqlProductRepository contra um Azure SQL/SQL
-Server real -- mesma convenção do teste Postgres irmão
-(test_catalog_repository_integration.py): pula sozinho se
-TEST_DATABASE_URL_AZURE_SQL/DATABASE_URL_AZURE_SQL não apontar pra um banco
-alcançável.
+Server real -- pula sozinho se TEST_DATABASE_URL/DATABASE_URL não apontar pra
+um banco alcançável.
 
-A conformidade geral chama a MESMA função que o teste Postgres chama. Os testes
-de busca full-text são separados (mecanismo genuinamente diferente -- ver
-repository.py do adapter) e esperam **resultados equivalentes, não ranking
-idêntico** ao Postgres -- ver a nota na porta ProductRepository e o plano de
-migração, docs internos.
+A conformidade geral chama a função de conformidade compartilhada da porta
+(ver tests/support/revold_testing/port_conformance.py). Os testes de busca
+full-text são separados (mecanismo genuinamente diferente -- ver
+repository.py do adapter): o ranking de relevância é definido por adapter,
+não é um contrato entre adapters -- ver a nota na porta ProductRepository e
+a ADR-0032.
 
 O índice full-text do SQL Server popula de forma ASSÍNCRONA (mesmo depois do
 INSERT retornar) -- os testes de busca esperam o
@@ -36,9 +35,9 @@ from revold_testing.port_conformance import (
 pytestmark = pytest.mark.integration
 
 TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL_AZURE_SQL",
+    "TEST_DATABASE_URL",
     os.environ.get(
-        "DATABASE_URL_AZURE_SQL",
+        "DATABASE_URL",
         "mssql+aioodbc://sa:revold_dev_only_1@localhost:1433/revold"
         "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes",
     ),

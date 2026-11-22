@@ -33,7 +33,7 @@ body:
         - payments
         - store-settings
         - platform
-        - postgres
+        - azure-sql
         - redis
         - messaging
         - prometheus

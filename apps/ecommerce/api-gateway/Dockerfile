@@ -8,6 +8,24 @@
 # lugar. O `.dockerignore` da raiz deixa de fora .venv, node_modules e o .git.
 FROM python:3.12-slim AS base
 
+# Driver ODBC do SQL Server: pyodbc/aioodbc exigem a biblioteca do sistema, nao so
+# o pacote Python -- sem isso o container sobe mas qualquer conexao com o Azure SQL
+# falha ("Can't open lib ... No such file or directory"). Confirmado rodando a
+# instalacao de verdade contra esta mesma imagem base antes de aplicar aqui:
+# python:3.12-slim e Debian (nao Ubuntu, diferente do runner do CI), entao usa o
+# repositorio oficial da Microsoft para Debian, lendo a versao de /etc/os-release
+# em vez de fixar uma.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl gnupg2 apt-transport-https unixodbc-dev \
+    && debian_version=$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) \
+    && curl -fsSLO "https://packages.microsoft.com/config/debian/${debian_version}/packages-microsoft-prod.deb" \
+    && dpkg -i packages-microsoft-prod.deb \
+    && rm packages-microsoft-prod.deb \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:0.12.13 /uv /usr/local/bin/uv
 # O ambiente fica em /opt/venv, fora de /app: os volumes que o docker-compose monta em /app
 # para o reload não escondem as dependências instaladas.

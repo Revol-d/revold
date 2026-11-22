@@ -79,7 +79,7 @@ Os comandos abaixo são para o **PowerShell**, no Windows. Se algo travar, leia
 | Python 3.12 | versão oficial do repositório ([ADR-0029](docs/kb/decisoes/0029-workspace-uv-versao-por-unidade-e-lock-unico.md)) | `uv python install 3.12` | `uv run python --version` |
 | pre-commit | os hooks locais (seção 5) | `uv tool install pre-commit` e depois `uv tool update-shell` (põe `%USERPROFILE%\.local\bin` no PATH) | `pre-commit --version`, num terminal **novo** |
 | GitHub CLI | issue, branch ligada a issue, PR | **sem admin**: o zip da seção 2.1.1 (o `winget` pede admin e falha com `1602`); depois `gh auth login` | `gh auth status`, num terminal **novo** |
-| Docker Desktop | a pilha local: Postgres, Redis, API, worker, sites (seção 9) | instalador do site da Docker | `docker --version` |
+| Docker Desktop | a pilha local: Azure SQL, Redis, API, worker, sites (seção 9) | instalador do site da Docker | `docker --version` |
 | Node 20+ e pnpm 9 | **só** se for mexer nos sites ou em `libs/web/` | `winget install OpenJS.NodeJS.LTS` e depois `corepack enable` | `pnpm --version` |
 
 Depois de instalar, **feche e reabra o VS Code inteiro**: ele herda o PATH do momento em que abriu.
@@ -171,7 +171,7 @@ uv run dev test -q
 
 Os dois têm que terminar sem falha. O primeiro confere manifestos, fronteiras e tipos; o segundo
 roda a suíte inteira (um a dois minutos). Pulados (`skipped`) são normais: são os testes que exigem
-Postgres, Redis, Azurite ou LLM de verdade (seção 10).
+Azure SQL, Redis, Azurite ou LLM de verdade (seção 10).
 
 ---
 
@@ -533,7 +533,7 @@ se todos os outros passarem.
 | Hooks do pre-commit | os mesmos hooks de commit da seção 5.1, em todos os arquivos (o ruff e o `dev check` têm job próprio) |
 | Manifesto, fronteiras e tipos | `uv run dev check`: manifesto, gerados em dia, versões, import-linter e mypy |
 | Unidades afetadas | quais unidades a branch toca, mais os consumidores delas |
-| Testes (Python) | os testes das unidades afetadas, com um Postgres de verdade e as migrações aplicadas |
+| Testes (Python) | os testes das unidades afetadas, com um Azure SQL de verdade e as migrações aplicadas |
 | Frontend | `pnpm lint` e `pnpm build`, se a branch tocou em unidade TypeScript |
 | Imagem `<site>` | o `docker build` da imagem de cada site, se a branch tocou em unidade TypeScript |
 | E2E (Playwright) | sobe banco, fila, API e loja e roda a prova de cliente (carrinho, checkout, busca), se a branch afetou a loja ou a API |
@@ -544,7 +544,7 @@ se todos os outros passarem.
 > arquivo no job "Hooks do pre-commit", e o `ruff` e o `dev check` nos jobs deles. Quem não
 > instalou os hooks descobre o erro no PR, e não na `main`. O contrário não vale: o `bandit`, o
 > `pip-audit`, o frontend, as imagens e o E2E rodam **só** no CI.
-> Os testes de integração rodam **só** onde há Postgres: no CI, ou na sua máquina com a pilha de pé
+> Os testes de integração rodam **só** onde há Azure SQL: no CI, ou na sua máquina com a pilha de pé
 > (seção 10). Se o CI reprovar algo que o hook deixou passar, a correção é a mesma: rode a
 > ferramenta que o CI aponta.
 
@@ -746,7 +746,7 @@ Depois:
 ### 9.1 A pilha local (Docker Compose)
 
 Os gates rodam na máquina, pelo `uv`. A **pilha** (banco, fila, API, worker, sites) roda em
-container, para ninguém depender do Postgres ou do Node instalados na máquina
+container, para ninguém depender do Azure SQL ou do Node instalados na máquina
 ([ADR-0031](docs/kb/decisoes/0031-gates-na-maquina-pilha-em-container.md)).
 
 ```powershell
@@ -767,7 +767,7 @@ copie o comando de lá.
 | `worker` | sem porta | o `event-worker`, que consome os eventos |
 | `prometheus` | http://localhost:9090 | as métricas |
 | `grafana` | http://localhost:3002 | o painel "Revold — Visão Geral", já provisionado |
-| `postgres`, `redis` | 5432 e 6379 | banco e fila |
+| `mssql`, `redis` | 1433 e 6379 | banco e fila |
 
 - **Sem o `make seed`**, a loja sobe com a vitrine vazia e sem erro nenhum: parece que funciona, e
   não há dado para avaliar ([ADR-0022](docs/kb/decisoes/0022-processo-padrao-de-seed-semantico.md)).
@@ -788,8 +788,8 @@ copie o comando de lá.
 
 ### 9.3 Migrações
 
-O histórico Alembic do banco da loja mora em `products/ecommerce/migrations/`. O banco é um só,
-e as tabelas são de vários domínios: cada um declara as suas em `adapters/postgres/`, e
+O histórico Alembic do banco da loja mora em `products/ecommerce/migrations_azure_sql/`. O banco é
+um só, e as tabelas são de vários domínios: cada um declara as suas em `adapters/azure_sql/`, e
 `revold_ecommerce.adapters.database` junta todas no `metadata` que o Alembic lê.
 
 Mudou uma tabela? Mude o modelo primeiro e peça ao Alembic a migração, com a pilha de pé e as
@@ -801,8 +801,8 @@ docker compose run --rm api-gateway alembic revision --autogenerate -m "descrica
 
 **Leia o arquivo gerado antes de commitar.** O autogenerate escreve só a diferença entre o banco e
 os modelos, e há o que ele não vê: renomear coluna vira apagar e criar (perde o dado), coluna
-gerada e extensão do Postgres (`unaccent`, `vector`) precisam ser escritas à mão. Toda migração
-tem `upgrade` e `downgrade`.
+computada e índice full-text/vetorial (`TRANSLATE`, `VECTOR`/`VECTOR_DISTANCE`) precisam ser
+escritos à mão. Toda migração tem `upgrade` e `downgrade`.
 
 Domínio novo com tabela entra na lista de `revold_ecommerce/adapters/database.py`, no mesmo PR. O
 teste `products/ecommerce/tests/test_migrations_match_models.py` confere as duas coisas: aplica
@@ -813,8 +813,11 @@ item 13).
 
 O alvo é o Azure Container Apps
 ([ADR-0004](docs/kb/decisoes/0004-plataforma-de-execucao-azure.md)), descrito em
-[deploy/terraform/](deploy/terraform/README.md). **O Terraform ainda não foi aplicado nem validado**,
-e não existe ambiente publicado. O que falta está na seção 13 e em [deploy/README.md](deploy/README.md).
+[deploy/terraform/](deploy/terraform/README.md). **O Terraform ainda não foi aplicado**, e não
+existe ambiente publicado. O módulo `azure-sql` passa em `terraform validate` (Fase 7 do plano de
+migração Postgres -> Azure SQL, docs internos); o módulo `azure-openai` ainda não (acompanha a
+mesma pendência de validação dos demais — ver o README do Terraform). O que falta está na seção 13
+e em [deploy/README.md](deploy/README.md).
 
 ---
 
@@ -835,23 +838,22 @@ uv run pytest caminho/do/test_coisa.py -v
 | Marcador | O que é | Roda por rotina? |
 |---|---|---|
 | (nenhum) | unitário: regra pura ou contra fake em memória | sim, sempre |
-| `integration` | fala com Postgres, Redis ou um servidor de verdade em memória | **pula sozinho** sem a infraestrutura; roda no CI (Postgres) e com a pilha de pé |
+| `integration` | fala com Azure SQL, Redis ou um servidor de verdade em memória | **pula sozinho** sem a infraestrutura; roda no CI (Azure SQL) e com a pilha de pé |
 | `contract` | confere a API contra os contratos em `products/ecommerce/contracts/api/`; hoje, a lista de rotas (seção 13, item 12) | sim |
 | `eval` | o dataset comportamental do assistente de IA | a parte determinística, sim; o `test_llm_judge` só com `LLM_PROVIDER=azure-openai` e credencial real |
 
 **Rodar os testes de integração na máquina:** suba só o banco e aponte os testes para ele.
 
 ```powershell
-docker compose up -d postgres
-$env:TEST_DATABASE_URL = "postgresql+asyncpg://revold:revold_dev_only@localhost:5432/revold"
-$env:DATABASE_URL_SYNC = "postgresql+psycopg2://revold:revold_dev_only@localhost:5432/revold"
+docker compose up -d mssql
+$env:TEST_DATABASE_URL = "mssql+aioodbc://sa:revold_dev_only_1@localhost:1433/revold?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+$env:DATABASE_URL_SYNC = "mssql+pyodbc://sa:revold_dev_only_1@localhost:1433/revold?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
 uv run alembic upgrade head
 uv run pytest -m integration -q
 ```
 
 Esses testes **gravam e apagam** dado. Nunca aponte `TEST_DATABASE_URL` para um banco que não seja
-de teste. Medido em 2026-11-14 com um Postgres em container: 40 passam e 6 pulam (os do Azurite
-e o do worker).
+de teste.
 
 **No Windows, não suba o Redis para os testes.** Com Redis alcançável em `REDIS_URL`, o teste de
 round-trip do event-worker (`test_integration_worker.py`) deixa de pular, sobe um worker Celery
@@ -1131,7 +1133,7 @@ num gate que não existe.
       que o banco já tinha. Nenhuma migração nova: o banco não muda;
     - o teste `products/ecommerce/tests/test_migrations_match_models.py` (marcador `integration`)
       cria um banco vazio, aplica todas as migrações e reprova qualquer diferença com os modelos.
-      Roda no job de testes do CI, com o Postgres do service; na máquina, pula sem banco.
+      Roda no job de testes do CI, com o Azure SQL do container; na máquina, pula sem banco.
 
     Ensaiado no Postgres com pgvector: o teste passa, o `alembic check` responde "No new upgrade
     operations detected" e, com uma coluna nova no modelo de pedido e sem migração, o teste

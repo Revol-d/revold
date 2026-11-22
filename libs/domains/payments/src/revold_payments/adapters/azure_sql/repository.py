@@ -1,5 +1,4 @@
-"""Implementação Azure SQL da porta revold_payments.ports.ChargeRepository.
-Espelha adapters/postgres/repository.py -- mesma lógica, só troca de onde o modelo vem."""
+"""Implementação Azure SQL da porta revold_payments.ports.ChargeRepository."""
 from __future__ import annotations
 
 from sqlalchemy import select

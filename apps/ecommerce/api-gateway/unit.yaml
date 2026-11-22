@@ -6,5 +6,5 @@ product: ecommerce
 language: python
 lifecycle: pilot
 owners: ["@SamuelSMatos", "@dmourans"]
-depends_on: ["ai-assistant", "azure-sql", "cart", "catalog", "communication", "ecommerce", "identity", "inventory", "messaging", "notification", "orders", "payments", "platform", "postgres", "prometheus", "redis", "store-settings"]
+depends_on: ["ai-assistant", "azure-sql", "cart", "catalog", "communication", "ecommerce", "identity", "inventory", "messaging", "notification", "orders", "payments", "platform", "prometheus", "redis", "store-settings"]
 runtime: fastapi-api

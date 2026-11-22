@@ -3,7 +3,7 @@
 Produto de e-commerce: o que cruza os domínios da loja.
 
 - **Tipo:** product · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `ai-assistant`, `catalog`, `identity`, `inventory`, `notification`, `orders`, `payments`, `store-settings`, `platform`, `postgres`
+- **Depende de:** `ai-assistant`, `catalog`, `identity`, `inventory`, `notification`, `orders`, `payments`, `store-settings`, `platform`, `azure-sql`
 
 ## O que faz
 
@@ -14,9 +14,9 @@ Produto de e-commerce: o que cruza os domínios da loja.
 | `event_handlers` | o que fazer com cada evento consumido pelo `event-worker` e o encaminhamento a webhooks |
 | `seed` | o seed semântico de catálogo, estoque e configuração (ADR-0022) |
 
-Em `adapters/`, `database` junta os modelos de todos os domínios com tabela no Postgres num `metadata` só: é o que o `env.py` das migrações e o teste `tests/test_migrations_match_models.py` comparam com o banco. Domínio novo com tabela entra na lista dele, no mesmo PR da migração.
+Em `adapters/`, `database` junta os modelos de todos os domínios com tabela no Azure SQL num `metadata` só: é o que o `env.py` das migrações e o teste `tests/test_migrations_match_models.py` comparam com o banco. Domínio novo com tabela entra na lista dele, no mesmo PR da migração.
 
-Fora do pacote: `contracts/api/` (os contratos OpenAPI da API; a lista de rotas é conferida pelo teste de contrato do api-gateway) e `migrations/` (o histórico Alembic do banco da loja).
+Fora do pacote: `contracts/api/` (os contratos OpenAPI da API; a lista de rotas é conferida pelo teste de contrato do api-gateway) e `migrations_azure_sql/` (o histórico Alembic do banco da loja).
 
 ## Camadas
 

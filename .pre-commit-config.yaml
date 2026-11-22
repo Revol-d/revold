@@ -112,7 +112,7 @@ repos:
         stages: [pre-push]
 
       # Os testes das unidades que a branch afeta, mais os consumidores delas. Os marcados
-      # `integration` pulam sozinhos sem Postgres/Redis, e os `eval` com LLM de verdade, sem
+      # `integration` pulam sozinhos sem Azure SQL/Redis, e os `eval` com LLM de verdade, sem
       # credencial: aqui roda só o que não precisa de infraestrutura.
       - id: pytest-affected
         name: Testes das unidades afetadas

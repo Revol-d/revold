@@ -3,11 +3,11 @@
 Assistente de IA: busca por similaridade no catálogo indexado e resposta com LangGraph.
 
 - **Tipo:** domain · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `postgres`, `openai`
+- **Depende de:** `azure-sql`, `openai`
 
 ## O que faz
 
-Casos de uso `AskAssistant` e `IndexProduct` (ADR-0011), as portas `LLMProvider` e `ProductIndex`, e os adapters: `adapters/llm/` (dev, Azure OpenAI, DeepSeek e a factory `build_llm_provider`) e `adapters/postgres/` (índice vetorial em pgvector). A pasta `evals/` guarda o dataset comportamental e o LLM-as-judge (ADR-0012).
+Casos de uso `AskAssistant` e `IndexProduct` (ADR-0011), as portas `LLMProvider` e `ProductIndex`, e os adapters: `adapters/llm/` (dev, Azure OpenAI, DeepSeek e a factory `build_llm_provider`) e `adapters/azure_sql/` (índice vetorial em VECTOR/DiskANN nativo). A pasta `evals/` guarda o dataset comportamental e o LLM-as-judge (ADR-0012).
 
 ## Camadas
 

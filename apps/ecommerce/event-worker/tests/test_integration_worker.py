@@ -11,10 +11,10 @@ Redis e um worker rodando") — Redis já está disponível neste ambiente
 verdade em vez de só a lógica de despacho com fakes (ver test_dispatch.py).
 
 Pula sozinho se Redis não estiver alcançável (mesma convenção dos testes
-de integração contra Postgres real — ver
-libs/domains/<dominio>/tests/test_catalog_repository_integration.py).
+de integração contra Azure SQL real — ver
+libs/domains/<dominio>/tests/test_catalog_repository_integration_azure_sql.py).
 Usa checkout.created/stock.low (não product.updated) de propósito: os
-dois passam pelo LoggingNotificationChannel, que não precisa de Postgres
+dois passam pelo LoggingNotificationChannel, que não precisa de Azure SQL
 nem de credencial nenhuma — mantém este teste focado em validar só o
 transporte Celery+Redis, não a lógica de negócio (já coberta por
 test_dispatch.py).

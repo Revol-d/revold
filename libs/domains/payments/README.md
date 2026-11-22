@@ -3,11 +3,11 @@
 Pagamentos: cobrança por Pix e cartão e reconciliação por webhook.
 
 - **Tipo:** domain · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `postgres`, `mercado-pago`
+- **Depende de:** `azure-sql`, `mercado-pago`
 
 ## O que faz
 
-A entidade `Charge`, os casos de uso de criar cobrança e confirmar pagamento (ADR-0024), as portas `PaymentGateway` e `ChargeRepository`, e os adapters: `adapters/gateways/` (fake, Mercado Pago e a factory `build_payment_gateway`) e `adapters/postgres/`.
+A entidade `Charge`, os casos de uso de criar cobrança e confirmar pagamento (ADR-0024), as portas `PaymentGateway` e `ChargeRepository`, e os adapters: `adapters/gateways/` (fake, Mercado Pago e a factory `build_payment_gateway`) e `adapters/azure_sql/`.
 
 ## Camadas
 

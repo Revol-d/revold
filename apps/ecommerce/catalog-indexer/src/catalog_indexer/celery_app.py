@@ -4,7 +4,7 @@ Não testado com um worker Celery de verdade — precisaria de Redis e um
 worker rodando. A lógica em si (reindex_all_products) mora no produto
 (`revold_ecommerce.application.catalog_indexing`) e é testada isoladamente
 com fakes em products/ecommerce/tests/test_catalog_indexing.py; este módulo
-só monta as dependências reais (Postgres, o LLMProvider configurado via
+só monta as dependências reais (Azure SQL, o LLMProvider configurado via
 LLM_PROVIDER) e chama a mesma função. Agendar `reindex_catalog_task`
 periodicamente (ex. Celery beat, diariamente) fica para quando houver
 infraestrutura de produção — por enquanto o mesmo código também é chamado
@@ -31,21 +31,14 @@ celery_app = Celery("catalog_indexer", broker=settings.redis_url())
 
 
 async def _reindex() -> int:
-    provider = settings.persistence_provider()
-    if provider == "azure-sql":
-        # Seleciona o engine/sessão do dialeto certo via PERSISTENCE_PROVIDER (ver
-        # revold_ecommerce.adapters.database e o plano de migração Postgres ->
-        # Azure SQL, docs internos).
-        from revold_azure_sql.db import make_engine, make_session_factory
-    else:
-        from revold_postgres.db import make_engine, make_session_factory
+    from revold_azure_sql.db import make_engine, make_session_factory
 
     engine = make_engine(settings.database_url())
     session_factory = make_session_factory(engine)
     llm = build_llm_provider(settings.llm_settings())
     async with session_factory() as session:
-        product_repository = build_product_repository(session, provider)
-        index_repository = build_product_index(session, provider)
+        product_repository = build_product_repository(session)
+        index_repository = build_product_index(session)
         index_product = IndexProduct(llm, index_repository)
         return await reindex_all_products(product_repository, index_product)
 

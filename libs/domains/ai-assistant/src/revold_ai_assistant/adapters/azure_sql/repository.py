@@ -1,8 +1,7 @@
 """Implementação Azure SQL da porta revold_ai_assistant.ports.ProductIndex.
 
-Espelha adapters/postgres/repository.py, trocando `.cosine_distance()` (método
-do pgvector.sqlalchemy.Vector) por `VECTOR_DISTANCE('cosine', ...)` -- a
-função nativa do Azure SQL.
+Usa `VECTOR_DISTANCE('cosine', ...)` -- a função nativa do Azure SQL para
+distância de cosseno.
 
 O vetor (seja no INSERT/UPDATE, seja na busca) entra como LITERAL SQL
 (`CAST('[...]' AS VECTOR(n))`), não como bind parameter -- testado e

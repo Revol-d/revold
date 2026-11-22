@@ -1,12 +1,9 @@
 """Testes de integração do AzureSqlProductIndexRepository (RAG, ADR-0011)
-contra um Azure SQL/SQL Server real -- mesma convenção do teste Postgres irmão
-(test_product_index_repository_integration.py): pula sozinho se
-TEST_DATABASE_URL_AZURE_SQL/DATABASE_URL_AZURE_SQL não apontar pra um banco
-alcançável.
+contra um Azure SQL/SQL Server real -- pula sozinho se
+TEST_DATABASE_URL/DATABASE_URL não apontar pra um banco alcançável.
 
-Chama a MESMA função de conformidade que o teste Postgres chama -- prova
-mecânica de que `VECTOR_DISTANCE('cosine', ...)` (Azure SQL/DiskANN) se
-comporta igual ao `cosine_distance()` do pgvector.
+Chama a função de conformidade compartilhada da porta (ver
+tests/support/revold_testing/port_conformance.py).
 """
 from __future__ import annotations
 
@@ -22,9 +19,9 @@ from revold_testing.port_conformance import assert_product_index_conformance
 pytestmark = pytest.mark.integration
 
 TEST_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL_AZURE_SQL",
+    "TEST_DATABASE_URL",
     os.environ.get(
-        "DATABASE_URL_AZURE_SQL",
+        "DATABASE_URL",
         "mssql+aioodbc://sa:revold_dev_only_1@localhost:1433/revold"
         "?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes",
     ),

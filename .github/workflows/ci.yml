@@ -120,79 +120,22 @@ jobs:
   tests:
     # So as unidades Python AFETADAS (job `affected`) e os consumidores delas. Se o PR nao toca
     # nenhuma (so docs/, ou so um site), o job e pulado, e o `ci-ok` aceita esse skip.
+    #
+    # Azure SQL de verdade, nao so o fake em memoria: os testes marcados `integration` pulam
+    # (skip) sozinhos se DATABASE_URL nao apontar para um banco alcancavel. Imagem propria
+    # (deploy/docker/mssql/): a oficial nao tem Full-Text Search instalado nem cria o banco
+    # `revold` sozinha, e precisa do motor 2025 (nao 2022) para o tipo nativo VECTOR, usado
+    # pelo dominio ai-assistant -- ver o Dockerfile para os achados reais e como foram
+    # verificados. Nao da pra usar `services:` aqui (so aceita puxar uma imagem pronta): builda
+    # a imagem antes de subir o container.
     name: Testes (Python)
     runs-on: ubuntu-latest
     needs: [affected]
     if: needs.affected.outputs.python == 'true'
-    # Postgres de verdade, nao so o fake em memoria: os testes marcados `integration` pulam
-    # (skip) sozinhos se DATABASE_URL nao apontar para um Postgres alcancavel. Sem este service
-    # eles nunca rodariam no CI, e a suite "verde" esconderia isso. pgvector/pgvector (nao a
-    # imagem postgres oficial) porque a migracao 0003 cria a extensao vector, usada pelo
-    # dominio ai-assistant.
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: revold
-          POSTGRES_PASSWORD: revold_ci_only
-          POSTGRES_DB: revold
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
-      DATABASE_URL: postgresql+asyncpg://revold:revold_ci_only@localhost:5432/revold
-      DATABASE_URL_SYNC: postgresql+psycopg2://revold:revold_ci_only@localhost:5432/revold
-      TEST_DATABASE_URL: postgresql+asyncpg://revold:revold_ci_only@localhost:5432/revold
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Instalar o workspace
-        run: uv sync --frozen
-      - name: Migracoes (no Postgres do service acima)
-        run: uv run alembic upgrade head
-      - name: Testes das unidades afetadas
-        # `dev test --affected` roda os testes das unidades afetadas e, quando a mudanca e
-        # global (uv.lock, tooling, tests/), a suite central junto.
-        run: uv run dev test --affected --base "origin/${{ github.base_ref || 'main' }}" -q
-
-  tests-azure-sql:
-    # Fase 5 do plano de migracao Postgres -> Azure SQL (docs internos). Mesmo espirito
-    # do job `tests` acima (service container real, nao so skip): os 7 dominios que
-    # dependem de persistencia ja tem adapter Azure SQL (Fases 1 e 2 do plano).
-    #
-    # Esta no `needs` do `ci-ok` e o `result` dele e conferido la (as duas armadilhas do
-    # `ci-ok` pedem isso -- ver o comentario la, e tests/architecture/test_ci_workflow.py
-    # que reprova se algum job ficar de fora). Mas DE PROPOSITO nao faz o `ci-ok` falhar
-    # ainda: so avisa (`::warning::`). Fica assim ate o health-check deste service
-    # container (novo, mais lento pra subir que o Postgres) provar estavel por um numero
-    # de PRs seguidos -- so entao o `case` no `ci-ok` passa a somar pra `falhou`, igual
-    # `tests`/`images` ja fazem.
-    name: Testes (Python, Azure SQL)
-    runs-on: ubuntu-latest
-    needs: [affected]
-    if: needs.affected.outputs.python == 'true'
-    env:
-      PERSISTENCE_PROVIDER: azure-sql
       DATABASE_URL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
-      DATABASE_URL_SYNC_AZURE_SQL: mssql+pyodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
-      TEST_DATABASE_URL_AZURE_SQL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
-      # Os testes de integracao do Postgres (um por dominio) caem em
-      # TEST_DATABASE_URL -> DATABASE_URL quando TEST_DATABASE_URL nao esta
-      # definido -- testado e confirmado que, sem isto, eles "vazam" pra
-      # conexao mssql do DATABASE_URL acima (a URL dita o dialeto, nao o
-      # nome da variavel) em vez de pular, e falham com erro de sintaxe SQL
-      # Server ao rodar consultas especificas do Postgres. Porta 1 fecha
-      # rapido (connection refused), entao o proprio skip-on-connection-
-      # failure de cada teste funciona como esperado.
-      TEST_DATABASE_URL: postgresql+asyncpg://unreachable:unreachable@localhost:1/revold
+      DATABASE_URL_SYNC: mssql+pyodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      TEST_DATABASE_URL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
     steps:
       - uses: actions/checkout@v4
         with:
@@ -215,68 +158,35 @@ jobs:
           echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
       - name: Instalar o workspace
         run: uv sync --frozen
-      - name: Montar a imagem do SQL Server (2025, com Full-Text Search)
-        # Por que 2025 e nao 2022: o tipo nativo VECTOR so existe no motor do SQL
-        # Server a partir da versao 2025 (17.x) -- confirmado rodando a migracao de
-        # verdade contra o 2022-latest (motor 16.x): "Cannot find data type VECTOR"
-        # (erro 2715). A Fase 0 deste plano validou VECTOR contra um Azure SQL
-        # Database real (PaaS, sempre na versao mais nova), que nao e a mesma coisa
-        # que o produto "em caixa" rodado aqui -- por isso o gap so apareceu agora,
-        # rodando o job de verdade pela primeira vez.
-        #
-        # A imagem oficial tambem NAO vem com Full-Text Search instalado -- confirmado
-        # da mesma forma: a migracao do catalog (CREATE FULLTEXT CATALOG) falhava com
-        # "Full-Text Search is not installed" (erro 7609). Nao da pra instalar via
-        # `docker exec` num container ja rodando (nao pega -- so funciona se instalado
-        # ANTES do primeiro start do sqlservr). Por isso este job nao usa mais
-        # `services:` (que so aceita puxar uma imagem pronta): builda a imagem com o
-        # pacote aqui, antes de subir o container.
-        run: |
-          cat <<'DOCKERFILE' > Dockerfile.mssql-fts
-          FROM mcr.microsoft.com/mssql/server:2025-latest
-          USER root
-          # O repositorio "prod" ja configurado na imagem so tem as ferramentas
-          # cliente (mssql-tools18 etc) -- mssql-server-fts mora no repositorio
-          # especifico do produto (mssql-server-2025, Ubuntu 24.04/noble -- confirmado
-          # rodando @@VERSION dentro da propria imagem), que precisa ser adicionado a
-          # mao. Confirmado rodando isto de verdade num container local antes de por
-          # no CI: sem este repositorio, "apt-get install mssql-server-fts" da
-          # "Unable to locate package"; com ele, instala e
-          # FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') volta 1.
-          RUN apt-get update \
-              && apt-get install -y curl \
-              && curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/mssql-server-2025.list -o /etc/apt/sources.list.d/mssql-server-2025.list \
-              && apt-get update \
-              && ACCEPT_EULA=Y apt-get install -y mssql-server-fts \
-              && apt-get clean \
-              && rm -rf /var/lib/apt/lists/*
-          USER mssql
-          DOCKERFILE
-          docker build -t revold-mssql-fts-ci:local -f Dockerfile.mssql-fts .
-      - name: Subir o SQL Server (com Full-Text Search)
+      - name: Montar a imagem do SQL Server
+        run: docker build -t revold-mssql-ci:local deploy/docker/mssql
+      - name: Subir o SQL Server
         run: |
           docker run -d --name mssql \
             -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=Rev0ld_ci_only_1 \
             -p 1433:1433 \
-            revold-mssql-fts-ci:local
+            revold-mssql-ci:local
       - name: Esperar o SQL Server responder
         # sqlcmd roda DENTRO do container -- o SQL Server demora mais pra ficar pronto
-        # que o Postgres, por isso o retry generoso.
+        # que o Postgres, por isso o retry generoso. Confere o banco `revold` por
+        # nome, nao so "SELECT 1": o entrypoint aceita conexao ANTES de terminar de
+        # criar o banco (achado real -- corrida entre o sqlservr aceitar conexao e
+        # o entrypoint rodar o CREATE DATABASE, ver deploy/docker/mssql/entrypoint.sh).
         run: |
           for i in $(seq 1 30); do
-            if docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q 'SELECT 1' >/dev/null 2>&1; then
+            if docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q "SELECT 1 FROM sys.databases WHERE name = 'revold'" 2>/dev/null | grep -q '(1 rows affected)'; then
               exit 0
             fi
             sleep 5
           done
-          echo "::error::SQL Server nao respondeu a tempo."
+          echo "::error::SQL Server (ou o banco revold) nao respondeu a tempo."
           docker logs mssql
           exit 1
-      - name: Criar o banco (a imagem so cria o master)
-        run: sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q "CREATE DATABASE revold"
-      - name: Migracoes (no Azure SQL do container acima)
-        run: uv run alembic -c alembic-azure-sql.ini upgrade head
+      - name: Migracoes (no SQL Server do container acima)
+        run: uv run alembic upgrade head
       - name: Testes das unidades afetadas
+        # `dev test --affected` roda os testes das unidades afetadas e, quando a mudanca e
+        # global (uv.lock, tooling, tests/), a suite central junto.
         run: uv run dev test --affected --base "origin/${{ github.base_ref || 'main' }}" -q
       - name: Derrubar o SQL Server
         if: always()
@@ -327,8 +237,8 @@ jobs:
 
   e2e:
     # A prova de cliente da loja (Playwright): navega, poe no carrinho, fecha o pedido pelo
-    # WhatsApp e busca um produto, contra a pilha de verdade (Postgres, Redis, API e loja do
-    # docker-compose.yml). Protege o caminho do dinheiro, que nenhum outro job exercita.
+    # WhatsApp e busca um produto, contra a pilha de verdade (Azure SQL, Redis, API e loja
+    # do docker-compose.yml). Protege o caminho do dinheiro, que nenhum outro job exercita.
     #
     # O Playwright roda NO RUNNER, e nao num container: o navegador precisa alcancar a loja e a
     # API pelas portas publicadas (3000 e 8000), como um cliente de verdade. Ensaiado em
@@ -350,7 +260,7 @@ jobs:
         # e este e de mentira.
         run: sed 's/^NICK_WHATSAPP_NUMBER=.*/NICK_WHATSAPP_NUMBER=5500000000000/' .env.example > .env
       - name: Subir banco, fila, API e loja
-        run: docker compose up -d --build --wait postgres redis api-gateway storefront
+        run: docker compose up -d --build --wait mssql redis api-gateway storefront
       - name: Migracoes
         run: docker compose exec -T api-gateway alembic upgrade head
       - name: Esperar a loja responder
@@ -479,7 +389,7 @@ jobs:
     name: CI OK
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, hooks, architecture, affected, tests, tests-azure-sql, frontend, site-images, e2e, security, images]
+    needs: [lint, hooks, architecture, affected, tests, frontend, site-images, e2e, security, images]
     steps:
       - name: Conferir o resultado de cada job
         run: |
@@ -495,17 +405,6 @@ jobs:
             esac
           done
 
-          # tests-azure-sql: Fase 5 do plano de migracao Postgres -> Azure SQL (docs
-          # internos). Esta no `needs` (resolve a armadilha 2 acima -- o job e VISTO pelo
-          # agregado) e o result dele E conferido aqui embaixo, mas DE PROPOSITO nao soma
-          # pra `falhou`: fica nao-bloqueante ate o health-check do service container
-          # (novo, mais lento que o do Postgres) provar estavel por um numero de PRs
-          # seguidos. So avisa, nao trava o merge. Promover a obrigatorio: mover o case
-          # dele pro mesmo formato do `tests`/`images` acima (soma pra `falhou`).
-          case "${{ needs.tests-azure-sql.result }}/${{ needs.affected.outputs.python }}" in
-            success/*|skipped/false) ;;
-            *) echo "::warning::tests-azure-sql terminou em '${{ needs.tests-azure-sql.result }}' -- nao-bloqueante ainda (Fase 5 do plano de migracao, ver comentario no job)." ;;
-          esac
           # O `e2e` so pode ser `skipped` quando nem a loja nem a API foram afetadas.
           case "${{ needs.e2e.result }}/${{ needs.affected.outputs.e2e }}" in
             success/*|skipped/false) ;;
@@ -532,7 +431,6 @@ jobs:
             echo "  lint=${{ needs.lint.result }}  hooks=${{ needs.hooks.result }}  architecture=${{ needs.architecture.result }}  security=${{ needs.security.result }}"
             echo "  affected=${{ needs.affected.result }} (python=${{ needs.affected.outputs.python }}, web=${{ needs.affected.outputs.web }})"
             echo "  tests=${{ needs.tests.result }}  images=${{ needs.images.result }} (skipped so vale com python=false)"
-            echo "  tests-azure-sql=${{ needs.tests-azure-sql.result }} (nao-bloqueante, Fase 5 -- ver comentario no job)"
             echo "  frontend=${{ needs.frontend.result }}  site-images=${{ needs.site-images.result }} (skipped so vale com web=false)"
             echo "  e2e=${{ needs.e2e.result }} (skipped so vale com e2e=false)"
             exit 1
@@ -549,11 +447,4 @@ jobs:
 #
 # * Redis no job de testes: os testes marcados `integration` que dependem de Redis (o
 #   round-trip do event-worker) pulam aqui, como ja pulavam.
-#
-# * `tests-azure-sql` e nao-bloqueante: roda em todo PR afetado e esta no `needs` do
-#   `ci-ok` (o resultado dele e visto e conferido, as duas armadilhas do agregado
-#   continuam resolvidas), mas falhar so avisa (`::warning::`), nao trava o merge. Fica
-#   assim ate o health-check do service container provar estavel por tempo suficiente
-#   (Fase 5 do plano de migracao Postgres -> Azure SQL, docs internos) -- so entao vira
-#   obrigatorio de verdade.
 # ---------------------------------------------------------------------------

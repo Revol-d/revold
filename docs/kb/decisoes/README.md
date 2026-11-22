@@ -44,3 +44,4 @@ Numeração sequencial, com quatro dígitos. Confira esta tabela antes de abrir 
 | [0029](0029-workspace-uv-versao-por-unidade-e-lock-unico.md) | Workspace uv, versão por unidade e um lock só | implementado |
 | [0030](0030-tooling-proprio-e-manifesto-unit-yaml.md) | Tooling próprio (`dev`) e o manifesto `unit.yaml` | implementado |
 | [0031](0031-gates-na-maquina-pilha-em-container.md) | Gates na máquina, pilha em container | implementado |
+| [0032](0032-migracao-postgres-para-azure-sql.md) | Migração de Postgres para Azure SQL Database | implementado |

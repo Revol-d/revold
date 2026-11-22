@@ -1,5 +1,5 @@
 """Testa revold_ecommerce.application.event_handlers com fakes — sem Celery, sem Redis, sem
-Postgres. O round-trip real (publicar -> worker consumir) é
+Azure SQL. O round-trip real (publicar -> worker consumir) é
 tests/test_integration_worker.py."""
 from __future__ import annotations
 

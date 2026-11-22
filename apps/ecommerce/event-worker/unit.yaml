@@ -6,5 +6,5 @@ product: ecommerce
 language: python
 lifecycle: pilot
 owners: ["@SamuelSMatos", "@dmourans"]
-depends_on: ["ai-assistant", "azure-sql", "catalog", "ecommerce", "messaging", "notification", "platform", "postgres"]
+depends_on: ["ai-assistant", "azure-sql", "catalog", "ecommerce", "messaging", "notification", "platform"]
 runtime: celery-worker

@@ -5,7 +5,6 @@ description = "Catálogo de produtos: categorias, produtos, variantes e imagens.
 requires-python = ">=3.12"
 # Dependencias internas sem pino: o uv.lock unico e o workspace resolvem a versao.
 dependencies = [
-    "revold-postgres",
     "revold-azure-sql",
     "revold-azure-blob",
     "pydantic>=2.9,<3",

@@ -46,14 +46,7 @@ from revold_redis.client import make_redis_client
 from revold_store_settings.adapters.factory import build_store_settings_repository
 from revold_store_settings.ports import StoreSettingsRepository
 
-if settings.persistence_provider() == "azure-sql":
-    # Seleciona o engine/sessão do dialeto certo via PERSISTENCE_PROVIDER (ver o plano de
-    # migração Postgres -> Azure SQL, docs internos). Só a construção do engine mora aqui;
-    # qual classe de repositório embrulha a sessão é decidido em cada
-    # `adapters/factory.py` de domínio (ver get_store_settings_repository abaixo).
-    from revold_azure_sql.db import make_engine, make_session_factory
-else:
-    from revold_postgres.db import make_engine, make_session_factory
+from revold_azure_sql.db import make_engine, make_session_factory
 
 _engine = make_engine(settings.database_url())
 _session_factory = make_session_factory(_engine)
@@ -79,10 +72,7 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
 async def get_product_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> ProductRepository:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_catalog.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    return build_product_repository(session, settings.persistence_provider())
+    return build_product_repository(session)
 
 
 def get_redis_client() -> Redis:
@@ -98,10 +88,7 @@ async def get_cart_repository(
 async def get_inventory_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> InventoryRepository:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_inventory.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    return build_inventory_repository(session, settings.persistence_provider())
+    return build_inventory_repository(session)
 
 
 async def get_session_repository(
@@ -134,19 +121,13 @@ def get_notification_channel() -> NotificationChannel:
 async def get_order_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> OrderRepository:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_orders.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    return build_order_repository(session, settings.persistence_provider())
+    return build_order_repository(session)
 
 
 async def get_charge_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> ChargeRepository:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_payments.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    return build_charge_repository(session, settings.persistence_provider())
+    return build_charge_repository(session)
 
 
 def get_payment_gateway() -> PaymentGateway:
@@ -158,11 +139,7 @@ def get_payment_gateway() -> PaymentGateway:
 async def get_store_settings_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> StoreSettingsRepository:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_store_settings.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos). O raciocínio "sempre Postgres" das ADR-0016/0019/0023/0024 vale até
-    # essa migração terminar e uma ADR nova substituir essas quatro.
-    return build_store_settings_repository(session, settings.persistence_provider())
+    return build_store_settings_repository(session)
 
 
 def get_low_stock_threshold_env_default() -> int:
@@ -201,10 +178,7 @@ def get_llm_provider() -> LLMProvider:
 async def get_product_index(
     session: AsyncSession = Depends(get_db_session),
 ) -> ProductIndex:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_ai_assistant.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    return build_product_index(session, settings.persistence_provider())
+    return build_product_index(session)
 
 
 def get_media_storage() -> MediaStorage:
@@ -224,10 +198,7 @@ def get_event_publisher() -> EventPublisher:
 async def get_api_key_auth(
     session: AsyncSession = Depends(get_db_session),
 ) -> ApiKeyAuth:
-    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
-    # revold_identity.adapters.factory e o plano de migração Postgres -> Azure SQL,
-    # docs internos).
-    return build_api_key_auth(session, settings.persistence_provider())
+    return build_api_key_auth(session)
 
 
 def get_rate_limiter(redis: Redis = Depends(get_redis_client)) -> RateLimiter:

@@ -9,7 +9,6 @@ dependencies = [
     "revold-catalog",
     "revold-ecommerce",
     "revold-platform",
-    "revold-postgres",
     "revold-azure-sql",
     "celery>=5.4,<6",
 ]

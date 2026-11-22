@@ -3,11 +3,11 @@
 Pedidos: criação a partir do carrinho e transições de pagamento e de atendimento.
 
 - **Tipo:** domain · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `postgres`
+- **Depende de:** `azure-sql`
 
 ## O que faz
 
-A entidade `Order` com as linhas e os dois status, os casos de uso de criar, consultar, listar e mudar status (ADR-0023), a porta `OrderRepository` e o adapter `adapters/postgres/`.
+A entidade `Order` com as linhas e os dois status, os casos de uso de criar, consultar, listar e mudar status (ADR-0023), a porta `OrderRepository` e o adapter `adapters/azure_sql/`.
 
 ## Camadas
 

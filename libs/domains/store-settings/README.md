@@ -3,11 +3,11 @@
 Configuração da loja editável pelo admin: dados cadastrais e limiar de estoque baixo.
 
 - **Tipo:** domain · **Ciclo de vida:** pilot · **Manifesto:** [unit.yaml](unit.yaml)
-- **Depende de:** `postgres`
+- **Depende de:** `azure-sql`
 
 ## O que faz
 
-A entidade `StoreSettings` com a validação dos campos, os casos de uso de ler e salvar (ADR-0019), a porta `StoreSettingsRepository` e o adapter `adapters/postgres/`. `seed.py` declara a configuração de demonstração (ADR-0022).
+A entidade `StoreSettings` com a validação dos campos, os casos de uso de ler e salvar (ADR-0019), a porta `StoreSettingsRepository` e o adapter `adapters/azure_sql/`. `seed.py` declara a configuração de demonstração (ADR-0022).
 
 ## Camadas
 

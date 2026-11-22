@@ -11,7 +11,7 @@ class FakeProductRepository:
     """Adapter fake em memória — usado só em teste, nunca em produção.
 
     Implementa a mesma porta (revold_catalog.ports.ProductRepository) que o
-    adapter real de Postgres implementa, por estrutura (Protocol), sem
+    adapter real de Azure SQL implementa, por estrutura (Protocol), sem
     herança formal.
     """
 
