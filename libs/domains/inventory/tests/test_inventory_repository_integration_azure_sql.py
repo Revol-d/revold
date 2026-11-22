@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from revold_inventory.adapters.azure_sql.repository import AzureSqlInventoryRepository
+from revold_inventory.domain import StockLevel
 from revold_testing.port_conformance import assert_inventory_repository_conformance
 
 pytestmark = pytest.mark.integration
@@ -50,3 +51,31 @@ async def repository():
 
 async def test_conformidade_da_porta_inventory_repository(repository) -> None:
     await assert_inventory_repository_conformance(repository)
+
+
+@pytest.mark.parametrize(
+    ("primeiro_sku", "segundo_sku"),
+    [("abc-1", "ABC-1"), ("SKU-日本", "SKU-中国")],
+)
+async def test_skus_diferentes_nao_compartilham_estoque(
+    repository, primeiro_sku: str, segundo_sku: str
+) -> None:
+    # Com a colação padrão do servidor (case-insensitive, CP1252), `ABC-1` encontra a
+    # linha de `abc-1` e sobrescreve o estoque dela, sem erro. O mesmo acontece com SKUs
+    # fora do CP1252, que viram `?` ao gravar. A releitura usa uma sessão nova porque a
+    # sessão que gravou devolveria o objeto em memória (`expire_on_commit=False`).
+    await repository.save(StockLevel(sku=primeiro_sku, quantity_on_hand=10, quantity_reserved=0))
+    await repository.save(StockLevel(sku=segundo_sku, quantity_on_hand=3, quantity_reserved=0))
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        fresh_repository = AzureSqlInventoryRepository(fresh_session)
+        primeiro = await fresh_repository.get(primeiro_sku)
+        segundo = await fresh_repository.get(segundo_sku)
+    await engine.dispose()
+
+    assert primeiro is not None
+    assert segundo is not None
+    assert (primeiro.sku, primeiro.quantity_on_hand) == (primeiro_sku, 10)
+    assert (segundo.sku, segundo.quantity_on_hand) == (segundo_sku, 3)

@@ -2,6 +2,10 @@
 Postgres -> Azure SQL, docs internos). Espelha a tabela de
 products/ecommerce/migrations/versions/0002_initial_inventory.py (Postgres).
 
+`sku` usa `NVARCHAR` com colação binária porque é a chave: com a colação padrão do
+servidor, SKUs que só diferem em maiúsculas dividiriam a mesma linha de estoque (ver
+adapters/azure_sql/models.py).
+
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-11-21
@@ -23,7 +27,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         "inventory_stock_levels",
-        sa.Column("sku", sa.String(length=64), nullable=False),
+        sa.Column(
+            "sku",
+            sa.Unicode(length=64, collation="Latin1_General_100_BIN2"),
+            nullable=False,
+        ),
         sa.Column("quantity_on_hand", sa.Integer(), nullable=False),
         sa.Column("quantity_reserved", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("sku"),
