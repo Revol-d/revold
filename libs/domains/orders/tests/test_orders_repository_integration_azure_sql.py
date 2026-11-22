@@ -8,12 +8,14 @@ Chama a MESMA função de conformidade que o teste Postgres chama.
 from __future__ import annotations
 
 import os
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from revold_orders.adapters.azure_sql.repository import AzureSqlOrderRepository
+from revold_orders.domain import Money, Order, OrderLine
 from revold_testing.port_conformance import assert_order_repository_conformance
 
 pytestmark = pytest.mark.integration
@@ -52,3 +54,34 @@ async def repository():
 
 async def test_conformidade_da_porta_order_repository(repository) -> None:
     await assert_order_repository_conformance(repository)
+
+
+async def test_texto_fora_do_cp1252_sobrevive_numa_sessao_nova(repository) -> None:
+    # Mesmo achado de revisão do store-settings: VARCHAR com a colação padrão do
+    # servidor troca caractere fora do CP1252 por `?` ao gravar, sem erro, e a
+    # mesma sessão (expire_on_commit=False) mascara isso -- por isso relê numa
+    # sessão/engine nova, não pela mesma fixture `repository`.
+    order = Order(
+        order_id="o-emoji",
+        cart_id="c1",
+        lines=(
+            OrderLine(
+                sku="A",
+                product_name="Camiseta 🛍️",
+                variant_label="M / Azul",
+                unit_price=Money(Decimal("59.90")),
+                quantity=1,
+            ),
+        ),
+        created_at="2026-09-12T10:00:00+00:00",
+    )
+    await repository.save(order)
+
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as fresh_session:
+        reloaded = await AzureSqlOrderRepository(fresh_session).get("o-emoji")
+    await engine.dispose()
+
+    assert reloaded is not None
+    assert reloaded.lines[0].product_name == "Camiseta 🛍️"
