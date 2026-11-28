@@ -1,5 +1,5 @@
 """Testes de integração do PostgresApiKeyAuth (ADR-0016) contra um Postgres
-real — mesma convenção de test_ai_assistant_repository_integration.py: pula
+real — mesma convenção de test_orders_repository_integration.py: pula
 sozinho se TEST_DATABASE_URL/DATABASE_URL não apontar pra um Postgres
 alcançável.
 """
@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from revold_identity.adapters.postgres.api_key_auth import PostgresApiKeyAuth
-from revold_identity.domain import ApiKeyNotFound
+from revold_testing.port_conformance import assert_api_key_auth_conformance
 
 pytestmark = pytest.mark.integration
 
@@ -42,50 +42,24 @@ async def auth():
     await engine.dispose()
 
 
+async def test_conformidade_da_porta_api_key_auth(auth) -> None:
+    """Prova mecânica de que o adapter Postgres satisfaz a mesma porta que o adapter
+    Azure SQL (test_api_key_auth_integration_azure_sql.py chama a mesma função)."""
+    await assert_api_key_auth_conformance(auth)
+
+
 async def test_issue_grava_so_o_hash_nunca_o_texto_puro(auth) -> None:
     principal, raw_key = await auth.issue(name="Parceiro ERP")
-
-    assert raw_key.startswith("rvld_")
-    assert principal.name == "Parceiro ERP"
 
     # confirma via uma conexão independente que a tabela não guarda o texto
     # puro em lugar nenhum
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.connect() as conn:
         row = (
-            await conn.execute(text("SELECT key_hash FROM identity_api_keys WHERE key_id = :id"), {"id": principal.key_id})
+            await conn.execute(
+                text("SELECT key_hash FROM identity_api_keys WHERE key_id = :id"),
+                {"id": principal.key_id},
+            )
         ).one()
         assert raw_key not in row[0]
     await engine.dispose()
-
-
-async def test_resolve_de_chave_valida_devolve_o_principal(auth) -> None:
-    principal, raw_key = await auth.issue(name="Parceiro ERP")
-
-    resolved = await auth.resolve(raw_key)
-
-    assert resolved == principal
-
-
-async def test_resolve_de_chave_inexistente_devolve_none(auth) -> None:
-    assert await auth.resolve("rvld_nao-existe") is None
-
-
-async def test_resolve_de_chave_revogada_devolve_none(auth) -> None:
-    principal, raw_key = await auth.issue(name="Parceiro ERP")
-
-    await auth.revoke(principal.key_id)
-
-    assert await auth.resolve(raw_key) is None
-
-
-async def test_revoke_de_key_id_inexistente_levanta_erro(auth) -> None:
-    with pytest.raises(ApiKeyNotFound):
-        await auth.revoke("nao-existe")
-
-
-async def test_issue_gera_chaves_diferentes_a_cada_chamada(auth) -> None:
-    _, raw_key_1 = await auth.issue(name="Parceiro A")
-    _, raw_key_2 = await auth.issue(name="Parceiro B")
-
-    assert raw_key_1 != raw_key_2
