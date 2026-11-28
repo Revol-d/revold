@@ -163,6 +163,120 @@ jobs:
         # global (uv.lock, tooling, tests/), a suite central junto.
         run: uv run dev test --affected --base "origin/${{ github.base_ref || 'main' }}" -q
 
+  tests-azure-sql:
+    # Fase 5 do plano de migracao Postgres -> Azure SQL (docs internos). Mesmo espirito
+    # do job `tests` acima (service container real, nao so skip): os 7 dominios que
+    # dependem de persistencia ja tem adapter Azure SQL (Fases 1 e 2 do plano).
+    #
+    # Obrigatorio (soma pra `falhou` no `ci-ok`, igual `tests`/`images`): o health-check
+    # deste service container ja provou estavel por um numero de PRs seguidos.
+    name: Testes (Python, Azure SQL)
+    runs-on: ubuntu-latest
+    needs: [affected]
+    if: needs.affected.outputs.python == 'true'
+    env:
+      PERSISTENCE_PROVIDER: azure-sql
+      DATABASE_URL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_URL_SYNC_AZURE_SQL: mssql+pyodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      TEST_DATABASE_URL_AZURE_SQL: mssql+aioodbc://sa:Rev0ld_ci_only_1@localhost:1433/revold?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      # Os testes de integracao do Postgres (um por dominio) caem em
+      # TEST_DATABASE_URL -> DATABASE_URL quando TEST_DATABASE_URL nao esta
+      # definido -- testado e confirmado que, sem isto, eles "vazam" pra
+      # conexao mssql do DATABASE_URL acima (a URL dita o dialeto, nao o
+      # nome da variavel) em vez de pular, e falham com erro de sintaxe SQL
+      # Server ao rodar consultas especificas do Postgres. Porta 1 fecha
+      # rapido (connection refused), entao o proprio skip-on-connection-
+      # failure de cada teste funciona como esperado.
+      TEST_DATABASE_URL: postgresql+asyncpg://unreachable:unreachable@localhost:1/revold
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Instalar o ODBC Driver 18 for SQL Server
+        # O runner ubuntu-latest nao vem com o driver (conferido no proprio
+        # actions/runner-images) -- e script oficial da Microsoft, que le a versao do
+        # Ubuntu em /etc/os-release em vez de fixar uma, porque o ubuntu-latest muda de
+        # versao com o tempo (estava mudando para a 26.04 nesta mesma epoca).
+        run: |
+          ubuntu_version=$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)
+          curl -fsSLO "https://packages.microsoft.com/config/ubuntu/$ubuntu_version/packages-microsoft-prod.deb"
+          sudo dpkg -i packages-microsoft-prod.deb
+          rm packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18 unixodbc-dev
+          echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+      - name: Instalar o workspace
+        run: uv sync --frozen
+      - name: Montar a imagem do SQL Server (2025, com Full-Text Search)
+        # Por que 2025 e nao 2022: o tipo nativo VECTOR so existe no motor do SQL
+        # Server a partir da versao 2025 (17.x) -- confirmado rodando a migracao de
+        # verdade contra o 2022-latest (motor 16.x): "Cannot find data type VECTOR"
+        # (erro 2715). A Fase 0 deste plano validou VECTOR contra um Azure SQL
+        # Database real (PaaS, sempre na versao mais nova), que nao e a mesma coisa
+        # que o produto "em caixa" rodado aqui -- por isso o gap so apareceu agora,
+        # rodando o job de verdade pela primeira vez.
+        #
+        # A imagem oficial tambem NAO vem com Full-Text Search instalado -- confirmado
+        # da mesma forma: a migracao do catalog (CREATE FULLTEXT CATALOG) falhava com
+        # "Full-Text Search is not installed" (erro 7609). Nao da pra instalar via
+        # `docker exec` num container ja rodando (nao pega -- so funciona se instalado
+        # ANTES do primeiro start do sqlservr). Por isso este job nao usa mais
+        # `services:` (que so aceita puxar uma imagem pronta): builda a imagem com o
+        # pacote aqui, antes de subir o container.
+        run: |
+          cat <<'DOCKERFILE' > Dockerfile.mssql-fts
+          FROM mcr.microsoft.com/mssql/server:2025-latest
+          USER root
+          # O repositorio "prod" ja configurado na imagem so tem as ferramentas
+          # cliente (mssql-tools18 etc) -- mssql-server-fts mora no repositorio
+          # especifico do produto (mssql-server-2025, Ubuntu 24.04/noble -- confirmado
+          # rodando @@VERSION dentro da propria imagem), que precisa ser adicionado a
+          # mao. Confirmado rodando isto de verdade num container local antes de por
+          # no CI: sem este repositorio, "apt-get install mssql-server-fts" da
+          # "Unable to locate package"; com ele, instala e
+          # FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') volta 1.
+          RUN apt-get update \
+              && apt-get install -y curl \
+              && curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/mssql-server-2025.list -o /etc/apt/sources.list.d/mssql-server-2025.list \
+              && apt-get update \
+              && ACCEPT_EULA=Y apt-get install -y mssql-server-fts \
+              && apt-get clean \
+              && rm -rf /var/lib/apt/lists/*
+          USER mssql
+          DOCKERFILE
+          docker build -t revold-mssql-fts-ci:local -f Dockerfile.mssql-fts .
+      - name: Subir o SQL Server (com Full-Text Search)
+        run: |
+          docker run -d --name mssql \
+            -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=Rev0ld_ci_only_1 \
+            -p 1433:1433 \
+            revold-mssql-fts-ci:local
+      - name: Esperar o SQL Server responder
+        # sqlcmd roda DENTRO do container -- o SQL Server demora mais pra ficar pronto
+        # que o Postgres, por isso o retry generoso.
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q 'SELECT 1' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::SQL Server nao respondeu a tempo."
+          docker logs mssql
+          exit 1
+      - name: Criar o banco (a imagem so cria o master)
+        run: sqlcmd -C -S localhost -U sa -P Rev0ld_ci_only_1 -Q "CREATE DATABASE revold"
+      - name: Migracoes (no Azure SQL do container acima)
+        run: uv run alembic -c alembic-azure-sql.ini upgrade head
+      - name: Testes das unidades afetadas
+        run: uv run dev test --affected --base "origin/${{ github.base_ref || 'main' }}" -q
+      - name: Derrubar o SQL Server
+        if: always()
+        run: docker rm -f mssql || true
+
   frontend:
     # O workspace pnpm: a lib `@revold/ui` e os dois sites. Roda so quando alguma unidade
     # TypeScript foi afetada (`web` do job `affected`).
@@ -360,21 +474,24 @@ jobs:
     name: CI OK
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, hooks, architecture, affected, tests, frontend, site-images, e2e, security, images]
+    needs: [lint, hooks, architecture, affected, tests, tests-azure-sql, frontend, site-images, e2e, security, images]
     steps:
       - name: Conferir o resultado de cada job
         run: |
           falhou=0
 
-          # `tests` e `images` so podem ser `skipped` quando o `affected` disse que nenhuma
-          # unidade Python foi tocada. Em qualquer outro caso, skip e falha: teste que nao
-          # rodou nao aprovou.
-          for r in "${{ needs.tests.result }}" "${{ needs.images.result }}"; do
+          # `tests`, `images` e `tests-azure-sql` so podem ser `skipped` quando o
+          # `affected` disse que nenhuma unidade Python foi tocada. Em qualquer outro
+          # caso, skip e falha: teste que nao rodou nao aprovou. `tests-azure-sql` virou
+          # obrigatorio (Fase 5 do plano de migracao Postgres -> Azure SQL, docs
+          # internos, concluida): o health-check do service container provou estavel.
+          for r in "${{ needs.tests.result }}" "${{ needs.images.result }}" "${{ needs.tests-azure-sql.result }}"; do
             case "$r/${{ needs.affected.outputs.python }}" in
               success/*|skipped/false) ;;
               *) falhou=1 ;;
             esac
           done
+
           # O `e2e` so pode ser `skipped` quando nem a loja nem a API foram afetadas.
           case "${{ needs.e2e.result }}/${{ needs.affected.outputs.e2e }}" in
             success/*|skipped/false) ;;
@@ -400,7 +517,7 @@ jobs:
             echo "::error::Algum job do CI nao terminou em success."
             echo "  lint=${{ needs.lint.result }}  hooks=${{ needs.hooks.result }}  architecture=${{ needs.architecture.result }}  security=${{ needs.security.result }}"
             echo "  affected=${{ needs.affected.result }} (python=${{ needs.affected.outputs.python }}, web=${{ needs.affected.outputs.web }})"
-            echo "  tests=${{ needs.tests.result }}  images=${{ needs.images.result }} (skipped so vale com python=false)"
+            echo "  tests=${{ needs.tests.result }}  images=${{ needs.images.result }}  tests-azure-sql=${{ needs.tests-azure-sql.result }} (skipped so vale com python=false)"
             echo "  frontend=${{ needs.frontend.result }}  site-images=${{ needs.site-images.result }} (skipped so vale com web=false)"
             echo "  e2e=${{ needs.e2e.result }} (skipped so vale com e2e=false)"
             exit 1
