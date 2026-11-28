@@ -6,6 +6,7 @@ Tudo o que leva o código para fora da máquina de quem desenvolve. Não é unid
 | Pasta | O que tem | Estado |
 |---|---|---|
 | [terraform/](terraform/README.md) | a infraestrutura do Azure: rede, Key Vault, Postgres, Container Apps, Azure OpenAI ([ADR-0004](../docs/kb/decisoes/0004-plataforma-de-execucao-azure.md)) | escrito, **nunca aplicado nem validado** |
+| `docker/mssql/` | imagem própria do SQL Server pro dev local (motor 2025 + Full-Text Search, que a oficial não tem) | usado pelo `docker-compose.yml` (profile `azure-sql`) |
 | `observability/prometheus/` | a configuração de scrape do Prometheus | usado pelo `docker-compose.yml` |
 | `observability/grafana/provisioning/` | a fonte de dados e o painel "Revold — Visão Geral", como código ([ADR-0017](../docs/kb/decisoes/0017-observabilidade-metricas-prometheus.md)) | usado pelo `docker-compose.yml` |
 

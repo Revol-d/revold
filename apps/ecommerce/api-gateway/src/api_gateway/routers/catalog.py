@@ -140,6 +140,8 @@ async def create_product(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except DuplicateSku as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     await _publish_product_updated(event_publisher, product.sku)
     return _product_to_schema(product)
 
@@ -186,13 +188,17 @@ async def add_product_variant(
     repository: ProductRepository = Depends(get_product_repository),
     _staff: AuthenticatedUser = Depends(require_any_role(UserRole.STAFF, UserRole.ADMIN)),
 ) -> ProductSchema:
-    variant = ProductVariant(sku=body.sku, size=body.size, color=body.color, in_stock=body.in_stock)
     try:
+        variant = ProductVariant(
+            sku=body.sku, size=body.size, color=body.color, in_stock=body.in_stock
+        )
         product = await AddProductVariant(repository).execute(sku, variant)
     except ProductNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except DuplicateVariantSku as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _product_to_schema(product)
 
 

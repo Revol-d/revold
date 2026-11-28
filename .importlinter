@@ -40,7 +40,6 @@ source_modules =
     revold_ai_assistant
 forbidden_modules =
     revold_azure_blob
-    revold_azure_sql
     revold_cart
     revold_catalog
     revold_communication
@@ -96,7 +95,6 @@ source_modules =
     revold_catalog
 forbidden_modules =
     revold_ai_assistant
-    revold_azure_sql
     revold_cart
     revold_communication
     revold_ecommerce
