@@ -10,7 +10,9 @@ portas do repositório (over-engineering fora do que a migração precisa).
 """
 from __future__ import annotations
 
+from revold_inventory.ports import InventoryRepository
 from revold_store_settings.ports import StoreSettingsRepository
+from revold_testing.inventory_factories import StockLevelFactory
 from revold_testing.store_settings_factories import StoreSettingsFactory
 
 
@@ -32,3 +34,21 @@ async def assert_store_settings_repository_conformance(
     reloaded = await repository.get()
     assert reloaded == second
     assert reloaded != first
+
+
+async def assert_inventory_repository_conformance(repository: InventoryRepository) -> None:
+    """Qualquer InventoryRepository (Postgres, Azure SQL, fake em memória) precisa
+    passar por isto. Usa um SKU próprio (`StockLevelFactory` gera um aleatório) para
+    não colidir com outros registros que já estejam no repositório."""
+    stock = StockLevelFactory()
+
+    assert await repository.get(stock.sku) is None
+
+    await repository.save(stock)
+    assert await repository.get(stock.sku) == stock
+
+    stock.receive(10)
+    await repository.save(stock)
+    reloaded = await repository.get(stock.sku)
+    assert reloaded == stock
+    assert reloaded.quantity_on_hand == stock.quantity_on_hand

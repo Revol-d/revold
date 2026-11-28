@@ -20,6 +20,11 @@ class StockLevel:
     quantity_reserved: int = 0
 
     def __post_init__(self) -> None:
+        # SQL Server ignora espaço no final ao comparar VARCHAR/NVARCHAR (mesmo com
+        # colação binária): "abc-1" e "abc-1 " caem na mesma linha da chave primária
+        # e um sobrescreve o outro sem erro, igual ao achado do #23 (maiúsculas).
+        if self.sku != self.sku.strip():
+            raise ValueError(f"sku '{self.sku}' não pode ter espaços no início ou no fim")
         if self.quantity_on_hand < 0:
             raise ValueError("quantity_on_hand não pode ser negativo")
         if self.quantity_reserved < 0:
