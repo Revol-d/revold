@@ -35,8 +35,8 @@ from revold_notification.adapters.logging_channel import LoggingNotificationChan
 from revold_notification.ports import NotificationChannel
 from revold_orders.adapters.factory import build_order_repository
 from revold_orders.ports import OrderRepository
+from revold_payments.adapters.factory import build_charge_repository
 from revold_payments.adapters.gateways.factory import build_payment_gateway
-from revold_payments.adapters.postgres.repository import PostgresChargeRepository
 from revold_payments.ports import ChargeRepository, PaymentGateway
 from revold_platform.events.in_memory_publisher import InMemoryEventPublisher
 from revold_platform.events.ports import EventPublisher
@@ -140,8 +140,10 @@ async def get_order_repository(
 async def get_charge_repository(
     session: AsyncSession = Depends(get_db_session),
 ) -> ChargeRepository:
-    # Sempre Postgres (ADR-0024) — mesmo raciocínio de get_order_repository.
-    return PostgresChargeRepository(session)
+    # Seleciona postgres/azure-sql via PERSISTENCE_PROVIDER (ver
+    # revold_payments.adapters.factory e o plano de migração Postgres -> Azure SQL,
+    # docs internos).
+    return build_charge_repository(session, settings.persistence_provider())
 
 
 def get_payment_gateway() -> PaymentGateway:
